@@ -19,7 +19,8 @@ Fline=15625
 PHASE_NOISE = 0
 
 # use biquads to filter components, otherwise moving average
-MOVING_AVERAGE = False
+MODE_MOVING_AVERAGE, MODE_BIQUADS, MODE_FIR = 0, 1, 2
+MODE = MODE_FIR
 
 # Number of encoder threads
 NENCODERS = 2
@@ -63,6 +64,22 @@ class Delay:
         self.x_3 = self.x_2
         self.x_2 = x
         return result
+
+class Fir:
+    # fir1(24, [0.64 0.65])
+    #T=[-0.006668820,0.013228192,-0.001537477,-0.013260611,0.009266078,0.000256255,0.005799417,-0.011520223,-0.005107819,0.022924074,-0.013038308,-0.004804865,0.000001773,0.006891506,0.013982994,-0.033442137,0.012308718,0.018661311,-0.012562864,-0.001416928,-0.023033471,0.044092231,-0.001851786,-0.052706478,0.036799575,0.001853947,0.029803130,-0.062312292,-0.043471423,0.199976077,-0.147833546,-0.126399001,0.290808660,-0.126399001,-0.147833546,0.199976077,-0.043471423,-0.062312292,0.029803130,0.001853947,0.036799575,-0.052706478,-0.001851786,0.044092231,-0.023033471,-0.001416928,-0.012562864,0.018661311,0.012308718,-0.033442137,0.013982994,0.006891506,0.000001773,-0.004804865,-0.013038308,0.022924074,-0.005107819,-0.011520223,0.005799417,0.000256255,0.009266078,-0.013260611,-0.001537477,0.013228192]
+
+    #T=[0.027579193,0.001467208,0.024694405,-0.053629595,-0.038573040,0.181641996,-0.136518323,-0.117879872,0.272097452,-0.117879872,-0.136518323,0.181641996,-0.038573040,-0.053629595,0.024694405,0.001467208]
+    T=[0.009651307,-0.053191198,0.066500183,-0.001634918,-0.104943133,0.145184450,-0.053154517,-0.104999028,0.183016088,-0.104999028,-0.053154517,0.145184450,-0.104943133,-0.001634918,0.066500183,-0.053191198]
+    #T = [0] * 23 + [1.0]
+    Order = len(T)
+
+    def filter(self, input, index):
+        s = 0
+        for i in xrange(self.Order):
+            s = s + 4 * self.T[i] * input[i - self.Order/2 + index]
+        return s
+
 
 class Biquad:
     # h/t Nigel Redmon 
@@ -195,8 +212,9 @@ class Decoder:
         self.fitlerV = Biquad().lowpass(Fsc * width_ratio, Fsc*0.2, 0.7)
         self.yavg, self.uavg, self.uavg = 0, 0, 0
 
-    def Decode(self, pal, sinwt, coswt):
-        if MOVING_AVERAGE:
+    def Decode(self, data, i, sinwt, coswt):
+        pal = data[i]
+        if MODE == MODE_MOVING_AVERAGE:
             self.yavg = (yavg + pal) / 2.0
             y_ = yavg
             u_ = (pal - y_) * 2 * sinwt
@@ -205,13 +223,18 @@ class Decoder:
             self.vavg = (vavg + v_) / 2
             u_ = uavg
             v_ = vavg 
-        else:
+        elif MODE == MODE_BIQUADS:
             color = self.fitler.filter(pal)
             y_ = self.notch.filter(pal) # - color
             u_ = color * 2 * sinwt
             v_ = color * 2 * coswt
             u_ = self.fitlerU.filter(u_)
             v_ = self.fitlerV.filter(v_)
+        elif MODE == MODE_FIR:
+            color = self.firchroma.filter(data, i)
+            y_ = pal - color
+            u_ = color * 2 * sinwt
+            v_ = color * 2 * coswt
         
         return YUVtoRGB(y_, u_, v_)
 
@@ -222,17 +245,18 @@ class Decoder:
             if pixelline == -1:
                 break
             t = 0
-            decoded = [] # [0] * width * 3
+            decoded = [0] * len(encoded) * 3
             line = int(round(pixelline / self.height_ratio)) % 2
 
-            for pal in encoded:
+            padded = [x/255.0 for x in [0] * self.firchroma.Order + encoded + [0] * self.firchroma.Order]
+            for i in xrange(self.firchroma.Order, self.firchroma.Order + len(encoded)):
                 wt = t * 2 * math.pi / self.width_ratio + [ +halfpi, -halfpi][line]
                 sinwt = math.sin(wt)
-                coswt = math.cos(wt) # * [+1,-1][line]
+                coswt = math.cos(wt)
+                r, g, b = self.Decode(padded, i, sinwt, coswt)
 
-                r, g, b = self.Decode(pal/255.0, sinwt, coswt)
-                # decoded[t*3:t*3+3] = clamp_scale3([r,g,b])
-                decoded = decoded + clamp_scale3([r,g,b])
+                decoded[t*3:t*3+3] = clamp_scale3([r,g,b])
+                #decoded = decoded + clamp_scale3([r,g,b])
                 t = t + 1
             #self.result[pixelline] = decoded
             #print "Hard working decoder puts line %d in outputQueue" % pixelline
