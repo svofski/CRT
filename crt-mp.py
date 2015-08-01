@@ -15,13 +15,22 @@ Fline=15625
 
 # subcarrier counts per scan line = Fsc/Fline = 283.7516
 
-# phase noise (2.5 for crappy cable)
+# phase noise (0.3 for moderately crappy RF cable)
 PHASE_NOISE = 0
 
 # use biquads to filter components, otherwise moving average
 MODE_MOVING_AVERAGE, MODE_BIQUADS, MODE_FIR = 0, 1, 2
 MODE = MODE_FIR
 
+# FIR lowpass gain 
+FIR_GAIN = 1.5
+# Inverse gain for luma recovery (correct for stripes) 1.1 seems to be working well
+FIR_INV_GAIN = 1.1
+
+# Use filters in the encoder 
+ENCODER_FILTERS = False
+
+# Pass values as floats (seems to have little to no effect)
 PASSFLOAT=False
 
 # Number of encoder threads
@@ -78,7 +87,7 @@ class Fir:
     # b=fir1(order, [0.01 0.1], kaiser(order+1, 1.0));
     T=[-0.008030271,0.003107906,0.016841352,0.032545161,0.049360136,0.066256720,0.082120150,0.095848433,0.106453014,0.113151423,0.115441842,0.113151423,0.106453014,0.095848433,0.082120150,0.066256720,0.049360136,0.032545161,0.016841352,0.003107906]
 
-    scale = 1.5
+    scale = FIR_GAIN
     Order = len(T)
 
     def filter(self, input, index):
@@ -164,9 +173,10 @@ class Encoder:
 
     def Encode(self, rgb, sinwt, coswt):
         y,u,v = RGBtoYUV(rgb)
-        #y = self.notch.filter(y)
-        #u = self.ufilter.filter(u)
-        #v = self.vfilter.filter(v)
+        if ENCODER_FILTERS:
+            y = self.notch.filter(y)
+            u = self.ufilter.filter(u)
+            v = self.vfilter.filter(v)
         return clamp(y + u * sinwt + v * coswt)
 
     def run(self):
@@ -250,7 +260,8 @@ class Decoder:
     def DecodeFIR(self, data, fromidx, toidx, line):
         uv = [(0,0)] * len(data)
         uv_ = [(0,0)] * len(data)
-        t = 0
+        zerot = PHASE_NOISE * (random() - 0.5)
+        t = zerot
         for i in xrange(fromidx, toidx):
             wt = t * 2 * math.pi / self.width_ratio
             sinwt = math.sin(wt)
@@ -260,13 +271,12 @@ class Decoder:
         for i in xrange(fromidx, toidx):
             uv_[i] = self.uvfir.filter(uv, i)
         rgb = []
-        t = 0
+        t = zerot
         for i in xrange(fromidx, toidx):
             wt = t * 2 * math.pi / self.width_ratio
             sinwt = math.sin(wt)
             coswt = [+1,-1][line] * math.cos(wt)
-            s = 1
-            y = data[i + 0] - (s * uv_[i][0] * sinwt + s * uv_[i][1] * coswt)
+            y = data[i + 0] - (FIR_INV_GAIN * uv_[i][0] * sinwt + FIR_INV_GAIN * uv_[i][1] * coswt)
             r, g, b = YUVtoRGB(y, uv_[i][0], uv_[i][1])
             rgb = rgb + clamp_scale3([r,g,b])
             t = t + 1
@@ -282,7 +292,8 @@ class Decoder:
                 else:
                     continue
 
-            t = 0
+            t = PHASE_NOISE * (random() - 0.5)
+
             decoded = [0] * len(encoded) * 3
             line = int(round(pixelline / self.height_ratio)) % 2
 
