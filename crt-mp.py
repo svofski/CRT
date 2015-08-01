@@ -58,27 +58,34 @@ def clamp(p):
     return p
 
 class Delay:
-    x_2, x_3 = 0, 0
+    def __init__(self, taps):
+        self.taps = taps
+        self.x = [0] * taps
+        self.i = 0
+
     def delay(self, x):
-        result = self.x_3
-        self.x_3 = self.x_2
-        self.x_2 = x
+        result = self.x[self.i]
+        self.x[self.i] = x
+        self.i = self.i + 1 
+        if self.i == self.taps:
+            self.i = 0
         return result
 
 class Fir:
-    # fir1(24, [0.64 0.65])
-    #T=[-0.006668820,0.013228192,-0.001537477,-0.013260611,0.009266078,0.000256255,0.005799417,-0.011520223,-0.005107819,0.022924074,-0.013038308,-0.004804865,0.000001773,0.006891506,0.013982994,-0.033442137,0.012308718,0.018661311,-0.012562864,-0.001416928,-0.023033471,0.044092231,-0.001851786,-0.052706478,0.036799575,0.001853947,0.029803130,-0.062312292,-0.043471423,0.199976077,-0.147833546,-0.126399001,0.290808660,-0.126399001,-0.147833546,0.199976077,-0.043471423,-0.062312292,0.029803130,0.001853947,0.036799575,-0.052706478,-0.001851786,0.044092231,-0.023033471,-0.001416928,-0.012562864,0.018661311,0.012308718,-0.033442137,0.013982994,0.006891506,0.000001773,-0.004804865,-0.013038308,0.022924074,-0.005107819,-0.011520223,0.005799417,0.000256255,0.009266078,-0.013260611,-0.001537477,0.013228192]
+    # lowpass
+    #T=[-0.036662765,-0.042822533,-0.034106766,-0.007232209,0.035930008,0.088084054,0.138123223,0.174215572,0.187364133,0.174215572,0.138123223,0.088084054,0.035930008,-0.007232209,-0.034106766,-0.042822533]
+    T=[-0.008030271,0.003107906,0.016841352,0.032545161,0.049360136,0.066256720,0.082120150,0.095848433,0.106453014,0.113151423,0.115441842,0.113151423,0.106453014,0.095848433,0.082120150,0.066256720,0.049360136,0.032545161,0.016841352,0.003107906]
 
-    #T=[0.027579193,0.001467208,0.024694405,-0.053629595,-0.038573040,0.181641996,-0.136518323,-0.117879872,0.272097452,-0.117879872,-0.136518323,0.181641996,-0.038573040,-0.053629595,0.024694405,0.001467208]
-    T=[0.009651307,-0.053191198,0.066500183,-0.001634918,-0.104943133,0.145184450,-0.053154517,-0.104999028,0.183016088,-0.104999028,-0.053154517,0.145184450,-0.104943133,-0.001634918,0.066500183,-0.053191198]
-    #T = [0] * 23 + [1.0]
+
+    scale = 2
     Order = len(T)
 
     def filter(self, input, index):
-        s = 0
+        u, v = 0, 0
         for i in xrange(self.Order):
-            s = s + 4 * self.T[i] * input[i - self.Order/2 + index]
-        return s
+            u, v = u + self.scale * self.T[i] * input[i - self.Order/2 + index][0],\
+                   v + self.scale * self.T[i] * input[i - self.Order/2 + index][1]
+        return (u,v)
 
 
 class Biquad:
@@ -149,11 +156,16 @@ class Encoder:
         self.width_ratio = width_ratio
         self.height_ratio = height_ratio
         self.result = []
+
         self.notch = Biquad().notch(Fsc * width_ratio, Fsc, 0.7)
+        self.ufilter = Biquad().lowpass(Fsc * width_ratio, 1.2e6, 0.8)
+        self.vfilter = Biquad().lowpass(Fsc * width_ratio, 1.2e6, 0.8)
 
     def Encode(self, rgb, sinwt, coswt):
         y,u,v = RGBtoYUV(rgb)
-        y = self.notch.filter(y)
+        #y = self.notch.filter(y)
+        #u = self.ufilter.filter(u)
+        #v = self.vfilter.filter(v)
         return clamp(y + u * sinwt + v * coswt)
 
     def run(self):
@@ -167,26 +179,26 @@ class Encoder:
             line = int(round(pixelline / self.height_ratio)) % 2
             wt = (180.0 + [+90,-90][line]) / 180.0 * math.pi
             yavg, uavg, vavg = 0, 0, 0
+
+            encoded = [0] * (len(linepixels) / 3)
             t = 0
-            #encoded = [0] * width
-            encoded = []
             for inputrgb in nslice(linepixels, 3):
-                wt = t * 2 * math.pi / self.width_ratio + [ +halfpi, -halfpi][line]
+                wt = t * 2 * math.pi / self.width_ratio # + [ +halfpi, -halfpi][line]
                 sinwt = math.sin(wt)
-                coswt = math.cos(wt) # * [+1,-1][line]
+                coswt = [+1,-1][line] * math.cos(wt)
 
                 pal = self.Encode(inputrgb, sinwt, coswt)
-                #encoded[t] = int(pal * 255)
-                encoded.append(int(pal*255))
+                encoded[t] = int(pal * 255)
 
                 t = t + 1
 
             self.result.append(encoded)
-            #print 'Encoder puts line %d' % pixelline
+            #print 'Encoder puts %d' % pixelline
             self.queue.put((pixelline, encoded))
             self.queue2.put((pixelline, encoded))
         # ensure that all consumers get their termination flags
         #print 'Encoder is terminating'
+        sleep(0.1)
         self.queue.put((-1, None))
         self.queue2.put((-1, self.encoderId))
         #print 'Encoder is done for'
@@ -199,68 +211,92 @@ class Decoder:
         self.width_ratio = width_ratio
         self.height_ratio = height_ratio
 
-        # chroma filter
-        self.fitler = Biquad().bandpass(Fsc * width_ratio, Fsc, 0.7) # 1.7 looks kinda cool in a wrong way
-        # luma filter
-        self.notch = Biquad().notch(Fsc * width_ratio, Fsc, 0.7)
-
         # fir chroma
-        self.firchroma = Fir()
+        self.uvfir = Fir()
 
-        # chroma output smoothing filter
-        self.fitlerU = Biquad().lowpass(Fsc * width_ratio, Fsc*0.2, 0.7)
-        self.fitlerV = Biquad().lowpass(Fsc * width_ratio, Fsc*0.2, 0.7)
-        self.yavg, self.uavg, self.uavg = 0, 0, 0
+        # chroma U/V lowpass filters
+        self.fitlerU = Biquad().lowpass(Fsc * width_ratio, 1.0e6, 0.8)
+        self.fitlerV = Biquad().lowpass(Fsc * width_ratio, 1.0e6, 0.8)
+        self.yavg, self.uavg, self.vavg = 0, 0, 0
 
     def Decode(self, data, i, sinwt, coswt):
         pal = data[i]
         if MODE == MODE_MOVING_AVERAGE:
-            self.yavg = (yavg + pal) / 2.0
-            y_ = yavg
+            self.yavg = (self.yavg + pal) / 2.0
+            y_ = self.yavg
             u_ = (pal - y_) * 2 * sinwt
             v_ = (pal - y_) * 2 * coswt
-            self.uavg = (uavg + u_) / 2
-            self.vavg = (vavg + v_) / 2
-            u_ = uavg
-            v_ = vavg 
+            self.uavg = (self.uavg + u_) / 2
+            self.vavg = (self.vavg + v_) / 2
+            u_ = self.uavg
+            v_ = self.vavg 
         elif MODE == MODE_BIQUADS:
-            color = self.fitler.filter(pal)
-            y_ = self.notch.filter(pal) # - color
+            color = pal # self.fitler.filter(pal)
             u_ = color * 2 * sinwt
             v_ = color * 2 * coswt
             u_ = self.fitlerU.filter(u_)
             v_ = self.fitlerV.filter(v_)
-        elif MODE == MODE_FIR:
-            color = self.firchroma.filter(data, i)
-            y_ = pal - color
-            u_ = color * 2 * sinwt
-            v_ = color * 2 * coswt
+
+            # transpose colour back to Fsc and subtract from composite
+            y_ = pal - (u_ * sinwt + v_ * coswt)
+            #y_ = self.notch.filter(pal) # - color
         
         return YUVtoRGB(y_, u_, v_)
 
+    def DecodeFIR(self, data, fromidx, toidx, line):
+        uv = [(0,0)] * len(data)
+        uv_ = [(0,0)] * len(data)
+        t = 0
+        for i in xrange(fromidx, toidx):
+            wt = t * 2 * math.pi / self.width_ratio
+            sinwt = math.sin(wt)
+            coswt = [+1,-1][line] * math.cos(wt)
+            uv[i] = (data[i] * sinwt, data[i] * coswt)
+            t = t + 1
+        for i in xrange(fromidx, toidx):
+            uv_[i] = self.uvfir.filter(uv, i)
+        rgb = []
+        t = 0
+        for i in xrange(fromidx, toidx):
+            wt = t * 2 * math.pi / self.width_ratio
+            sinwt = math.sin(wt)
+            coswt = [+1,-1][line] * math.cos(wt)
+            s = 0.5
+            y = data[i + 0] - (s * uv_[i][0] * sinwt + s * uv_[i][0] * coswt)
+            r, g, b = YUVtoRGB(y, uv_[i][0], uv_[i][1])
+            rgb = rgb + clamp_scale3([r,g,b])
+            t = t + 1
+        return rgb
+
     def run(self):
-        while True:        
+        while True:            
             pixelline, encoded = self.inputQueue.get(True)
-            #print 'Decoder %d picked line %d, qsize=%d' % (self.id, pixelline, self.queue.qsize())
+            #print 'Decoder %d pick %d' % (self.decoderId, pixelline)
             if pixelline == -1:
-                break
+                if self.inputQueue.empty():
+                    break
+                else:
+                    continue
+
             t = 0
             decoded = [0] * len(encoded) * 3
             line = int(round(pixelline / self.height_ratio)) % 2
 
-            padded = [x/255.0 for x in [0] * self.firchroma.Order + encoded + [0] * self.firchroma.Order]
-            for i in xrange(self.firchroma.Order, self.firchroma.Order + len(encoded)):
-                wt = t * 2 * math.pi / self.width_ratio + [ +halfpi, -halfpi][line]
-                sinwt = math.sin(wt)
-                coswt = math.cos(wt)
-                r, g, b = self.Decode(padded, i, sinwt, coswt)
+            padded = [x/255.0 for x in [0] * self.uvfir.Order + encoded + [0] * self.uvfir.Order]
+            if MODE == MODE_FIR:
+                decoded = self.DecodeFIR(padded, self.uvfir.Order, self.uvfir.Order + len(encoded), line)
+            else:
+                for i in xrange(self.uvfir.Order, self.uvfir.Order + len(encoded)):
+                    wt = t * 2 * math.pi / self.width_ratio
+                    sinwt = math.sin(wt)
+                    coswt = [+1,-1][line] * math.cos(wt)
+                    r, g, b = self.Decode(padded, i, sinwt, coswt)
 
-                decoded[t*3:t*3+3] = clamp_scale3([r,g,b])
-                #decoded = decoded + clamp_scale3([r,g,b])
-                t = t + 1
-            #self.result[pixelline] = decoded
+                    decoded[t*3:t*3+3] = clamp_scale3([r,g,b])
+                    t = t + 1
             #print "Hard working decoder puts line %d in outputQueue" % pixelline
             self.outputQueue.put((pixelline, decoded))
+        #if self.inputQueue.empty():
         self.inputQueue.put((-1, None))
         self.outputQueue.put((-1, self.decoderId))
 
@@ -287,7 +323,7 @@ def Unwrapper(pixels):
 
 if __name__ == '__main__':
 
-    inputfile = 'testcard.png'
+    inputfile = 'testcard_f.png'
 
     outputfile_coded = (lambda x: x[0] + '-encoded.' + x[1])(inputfile.split('.', 1))
     outputfile_decoded = (lambda x: x[0] + '-decoded.' + x[1])(inputfile.split('.', 1))
@@ -337,8 +373,8 @@ if __name__ == '__main__':
     activeEncoders = len(encoders)
     
     while (activeEncoders > 0) or (activeDecoders > 0):
-        if pixelQueue.full() or workQueue.full() or decoderQueue.full():
-            print 'Queue overflow'
+        #if pixelQueue.full() or workQueue.full() or decoderQueue.full():
+        #    print 'Queue overflow', pixelQueue.full(), workQueue.full(), decoderQueue.full()
         if unwrapping:
             try: 
                pixelQueue.put(unwrapper.next())
@@ -373,5 +409,8 @@ if __name__ == '__main__':
 
     print 'All done, writing result'
     coded_writer.write(coded, encoderResult)
+    for x in xrange(len(decoderResult)):
+        if decoderResult[x] == None:
+            print 'Erreur', x
     decoded_writer.write(decodedf, decoderResult)
       
