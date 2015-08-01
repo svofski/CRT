@@ -172,7 +172,7 @@ def main():
         if not get_input(): break
         draw()
         clock.tick(60)
-        print clock.get_fps()
+        #print clock.get_fps()
 
     deinit()
     
