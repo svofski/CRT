@@ -22,6 +22,8 @@ PHASE_NOISE = 0
 MODE_MOVING_AVERAGE, MODE_BIQUADS, MODE_FIR = 0, 1, 2
 MODE = MODE_FIR
 
+PASSFLOAT=False
+
 # Number of encoder threads
 NENCODERS = 2
 
@@ -73,11 +75,10 @@ class Delay:
 
 class Fir:
     # lowpass
-    #T=[-0.036662765,-0.042822533,-0.034106766,-0.007232209,0.035930008,0.088084054,0.138123223,0.174215572,0.187364133,0.174215572,0.138123223,0.088084054,0.035930008,-0.007232209,-0.034106766,-0.042822533]
+    # b=fir1(order, [0.01 0.1], kaiser(order+1, 1.0));
     T=[-0.008030271,0.003107906,0.016841352,0.032545161,0.049360136,0.066256720,0.082120150,0.095848433,0.106453014,0.113151423,0.115441842,0.113151423,0.106453014,0.095848433,0.082120150,0.066256720,0.049360136,0.032545161,0.016841352,0.003107906]
 
-
-    scale = 2
+    scale = 1.5
     Order = len(T)
 
     def filter(self, input, index):
@@ -188,7 +189,10 @@ class Encoder:
                 coswt = [+1,-1][line] * math.cos(wt)
 
                 pal = self.Encode(inputrgb, sinwt, coswt)
-                encoded[t] = int(pal * 255)
+                if PASSFLOAT:
+                    encoded[t] = pal
+                else:
+                    encoded[t] = int(pal * 255)
 
                 t = t + 1
 
@@ -261,8 +265,8 @@ class Decoder:
             wt = t * 2 * math.pi / self.width_ratio
             sinwt = math.sin(wt)
             coswt = [+1,-1][line] * math.cos(wt)
-            s = 0.5
-            y = data[i + 0] - (s * uv_[i][0] * sinwt + s * uv_[i][0] * coswt)
+            s = 1
+            y = data[i + 0] - (s * uv_[i][0] * sinwt + s * uv_[i][1] * coswt)
             r, g, b = YUVtoRGB(y, uv_[i][0], uv_[i][1])
             rgb = rgb + clamp_scale3([r,g,b])
             t = t + 1
@@ -282,7 +286,10 @@ class Decoder:
             decoded = [0] * len(encoded) * 3
             line = int(round(pixelline / self.height_ratio)) % 2
 
-            padded = [x/255.0 for x in [0] * self.uvfir.Order + encoded + [0] * self.uvfir.Order]
+            if PASSFLOAT:
+                padded = [0] * self.uvfir.Order + encoded + [0] * self.uvfir.Order
+            else:
+                padded = [x/255.0 for x in [0] * self.uvfir.Order + encoded + [0] * self.uvfir.Order]
             if MODE == MODE_FIR:
                 decoded = self.DecodeFIR(padded, self.uvfir.Order, self.uvfir.Order + len(encoded), line)
             else:
@@ -323,7 +330,7 @@ def Unwrapper(pixels):
 
 if __name__ == '__main__':
 
-    inputfile = 'testcard_f.png'
+    inputfile = 'riverraid.png'
 
     outputfile_coded = (lambda x: x[0] + '-encoded.' + x[1])(inputfile.split('.', 1))
     outputfile_decoded = (lambda x: x[0] + '-decoded.' + x[1])(inputfile.split('.', 1))
