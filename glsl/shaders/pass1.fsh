@@ -18,7 +18,9 @@ uniform vec2 screen_texture_sz;
 #define fetch(ofs,center,invx) texture2D(mpass_texture, vec2((ofs) * (invx) + center.x, center.y))
 
 void main(void) {
-    vec2 xy = gl_TexCoord[0].st;
+    float invx = 1.0 / color_texture_sz.x / 4;
+
+    vec2 xy = gl_TexCoord[0].st - vec2(invx, 0);
 
     vec3 rgb = texture2D(color_texture, xy).xyz;
     vec3 yuv = RGB_to_YUV * rgb;
@@ -33,6 +35,18 @@ void main(void) {
     float sinwt = sin(wt);
     float coswt = cos(wt + altv);
 
-    float encoded = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
-    gl_FragColor = vec4(encoded, encoded, encoded, 1.0);
+    float encoded1 = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
+
+
+    xy = xy + vec2(2 * invx, 0);
+    rgb = texture2D(color_texture, xy).xyz;
+    yuv = RGB_to_YUV * rgb;
+    t = xy.x * color_texture_sz.x;
+    wt = t * 2 * PI / width_ratio;
+    sinwt = sin(wt);
+    coswt = cos(wt + altv);
+
+    float encoded2 = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
+
+    gl_FragColor = vec4(encoded1, encoded2, 0.0, 1.0);
 }

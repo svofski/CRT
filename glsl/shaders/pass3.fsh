@@ -21,8 +21,8 @@ uniform vec2 screen_texture_sz;
 #define FIRTAPS 20
 const float FIR[FIRTAPS] = float[FIRTAPS] (-0.008030271,0.003107906,0.016841352,0.032545161,0.049360136,0.066256720,0.082120150,0.095848433,0.106453014,0.113151423,0.115441842,0.113151423,0.106453014,0.095848433,0.082120150,0.066256720,0.049360136,0.032545161,0.016841352,0.003107906);
 
-#define FIR_GAIN 2.8
-#define FIR_INVGAIN 1.18
+#define FIR_GAIN 4
+#define FIR_INVGAIN 1.6
 
 void main(void) {
     vec2 xy = gl_TexCoord[0].st;
@@ -38,16 +38,28 @@ void main(void) {
     float coswt = cos(wt + altv);
 
     // lowpass U/V at baseband
-    vec3 filtered = vec3(0.0, 0.0, 0.0);
+    vec2 filtered = vec2(0.0, 0.0);
     float invx = 1.0 / color_texture_sz.x;
-    for (int i = 0; i < FIRTAPS; i++) {
-        vec3 texel = fetch(i - FIRTAPS/2, xy, invx).xyz + vec3(0.0, -0.5, -0.5);
-        filtered += FIR_GAIN * texel * FIR[i];
+    for (int i = 0; i < FIRTAPS/2; i+=2) {
+        vec4 texel = fetch(i - FIRTAPS/4, xy, invx) + vec4(-0.5, -0.5, -0.5, -0.5);
+        filtered += FIR_GAIN * vec2(texel.x, texel.y) * FIR[i];
+        filtered += FIR_GAIN * vec2(texel.z, texel.w) * FIR[i + 1];
     }
+    float subtract = FIR_INVGAIN * (filtered.x * sinwt + filtered.y * coswt);
 
-    float recovered_luma = suv.x - FIR_INVGAIN * (filtered.y * sinwt + filtered.z * coswt);
+    // we could not pass Y through textures, so to be fair, reencode the signal again 
+    xy = gl_TexCoord[0].st;
+    vec3 rgb2 = texture2D(color_texture, xy).xyz;
+    vec3 yuv = RGB_to_YUV * rgb2;
+    t = xy.x * color_texture_sz.x;
+    wt = t * 2 * PI / width_ratio;
+    sinwt = sin(wt);
+    coswt = cos(wt + altv);
+    float reencoded = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
 
-    vec3 rgb = YUV_to_RGB * vec3(recovered_luma, filtered.y, filtered.z);
+    float recovered_luma = reencoded - subtract;
+
+    vec3 rgb = YUV_to_RGB * vec3(recovered_luma, filtered.x, filtered.y);
     gl_FragColor = vec4(rgb, 1.0);
 }
 

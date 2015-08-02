@@ -7,6 +7,7 @@ import random
 import pygame.image
 import gl_util, fbo, shader, texture
 import sys
+import time
 
 pygame.display.init()
 pygame.font.init()
@@ -48,7 +49,7 @@ flags = OPENGL|DOUBLEBUF|RESIZABLE
 pygame.display.set_mode(screen_size,flags)
 
 glEnable(GL_BLEND)
-glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+#glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
 
 glEnable(GL_TEXTURE_2D)
 glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE)
@@ -115,11 +116,17 @@ def draw_screen_quad():
     glTexCoord2f(0,1); glVertex2f(             0,screen_size[1])
     glEnd()
 
+def clear():
+    glColorMask(True, True, True, True);
+    glClearColor(0, 0, 0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
 def draw_update(texture):
     for i in xrange(len(shaders) - 1):
         pingpong = i % 2
 
         fbo.FBO2D.set_write(fbos[pingpong])
+
         shader.Shader.use(shaders[i])
         shaders[i].pass_vec2("color_texture_sz", screen_size)
         shaders[i].pass_texture_name(texture, texture.texture_id, "color_texture")
@@ -133,6 +140,7 @@ def draw_update(texture):
             mpass_texture1.bind()
         else:
             mpass_texture2.bind()
+        clear()
         draw_screen_quad()
 
     pingpong = (len(shaders) - 1) % 2
@@ -152,12 +160,16 @@ def draw_update(texture):
     else:
         mpass_texture2.bind()
 
+    clear()
     draw_screen_quad()
 
 def draw():
     global iterations
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    # for f in [None] + fbos:
+    #     fbo.FBO2D.set_write(f)
+    #     clear()
+
     gl_util.set_view_2D(screen_size)
 
     draw_update(color_texture)
@@ -171,7 +183,7 @@ def main():
     while True:
         if not get_input(): break
         draw()
-        clock.tick(60)
+        clock.tick(10)
         #print clock.get_fps()
 
     deinit()
