@@ -5,6 +5,9 @@ uniform sampler2D mpass_texture;
 uniform vec2 color_texture_sz;
 uniform vec2 screen_texture_sz;
 
+uniform float filter_gain;
+uniform float filter_invgain;
+
 #define PI          3.14159265358
 #define FSC         4433618.75
 #define FLINE       15625
@@ -18,11 +21,17 @@ uniform vec2 screen_texture_sz;
 
 #define fetch(ofs,center,invx) texture2D(mpass_texture, vec2((ofs) * (invx) + center.x, center.y))
 
+//#define FIRTAPS 20
+//const float FIR[FIRTAPS] = float[FIRTAPS] (-0.008030271,0.003107906,0.016841352,0.032545161,0.049360136,0.066256720,0.082120150,0.095848433,0.106453014,0.113151423,0.115441842,0.113151423,0.106453014,0.095848433,0.082120150,0.066256720,0.049360136,0.032545161,0.016841352,0.003107906);
+
+//#define FIRTAPS 20
+//const float FIR[FIRTAPS]=float[FIRTAPS] (0.034218165,0.037838638,0.041279283,0.044479970,0.047383705,0.049937971,0.052095979,0.053817793,0.055071295,0.055832968,0.056088466,0.055832968,0.055071295,0.053817793,0.052095979,0.049937971,0.047383705,0.044479970,0.041279283,0.037838638);
+
 #define FIRTAPS 20
-const float FIR[FIRTAPS] = float[FIRTAPS] (-0.008030271,0.003107906,0.016841352,0.032545161,0.049360136,0.066256720,0.082120150,0.095848433,0.106453014,0.113151423,0.115441842,0.113151423,0.106453014,0.095848433,0.082120150,0.066256720,0.049360136,0.032545161,0.016841352,0.003107906);
+const float FIR[FIRTAPS]=float[FIRTAPS] (0.030289281,0.034690838,0.039020054,0.043168185,0.047027347,0.050494338,0.053474373,0.055884554,0.057656942,0.058741099,0.059105978,0.058741099,0.057656942,0.055884554,0.053474373,0.050494338,0.047027347,0.043168185,0.039020054,0.034690838);
 
 #define FIR_GAIN 4
-#define FIR_INVGAIN 1.6
+#define FIR_INVGAIN 2.3
 
 void main(void) {
     vec2 xy = gl_TexCoord[0].st;
@@ -42,10 +51,10 @@ void main(void) {
     float invx = 1.0 / color_texture_sz.x;
     for (int i = 0; i < FIRTAPS/2; i+=2) {
         vec4 texel = fetch(i - FIRTAPS/4, xy, invx) + vec4(-0.5, -0.5, -0.5, -0.5);
-        filtered += FIR_GAIN * vec2(texel.x, texel.y) * FIR[i];
-        filtered += FIR_GAIN * vec2(texel.z, texel.w) * FIR[i + 1];
+        filtered += filter_gain * vec2(texel.x, texel.y) * FIR[i];
+        filtered += filter_gain * vec2(texel.z, texel.w) * FIR[i + 1];
     }
-    float subtract = FIR_INVGAIN * (filtered.x * sinwt + filtered.y * coswt);
+    float subtract = filter_invgain * (filtered.x * sinwt + filtered.y * coswt);
 
     // we could not pass Y through textures, so to be fair, reencode the signal again 
     xy = gl_TexCoord[0].st;
