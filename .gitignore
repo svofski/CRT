@@ -7,3 +7,4 @@
 
 *.bts
 glsl/shaders/pass1.fsh.2x
+*.bak
