@@ -150,6 +150,7 @@ def get_input(shader_manager, context, legend):
                 context.ReloadShaders()
             elif event.key == K_n:
                 context.SetSource(loadSource())
+                legend.Resize(legend.size)
 
             elif event.key in [K_1, K_2, K_3, K_4, K_5, K_6, K_7, K_8, K_9]:
                 context.TogglePassEnable(event.key - K_1)
