@@ -8,6 +8,4 @@
 *.bts
 glsl/shaders/pass1.fsh.2x
 *.bak
-glsl/shaders/singlepass/pass1.vsh
 
-glsl/shaders/singlepass/pass1_rgb32_dir.fsh
