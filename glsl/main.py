@@ -150,7 +150,6 @@ def draw_update(texture):
         pingpong = i % 2
 
         fbo.FBO2D.set_write(fbos[pingpong])
-        fbos[pingpong].print_error()
 
         shader.Shader.use(shaders[i])
         shaders[i].pass_vec2("color_texture_sz", screen_size)
@@ -159,8 +158,6 @@ def draw_update(texture):
             shaders[i].pass_texture_name(mpass_texture1, mpass_texture1.texture_id, "mpass_texture")
         else:
             shaders[i].pass_texture_name(mpass_texture2, mpass_texture2.texture_id, "mpass_texture")
-
-        fbos[pingpong].print_error()
 
         draw_screen_quad()
 
