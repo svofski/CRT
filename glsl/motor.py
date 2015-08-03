@@ -1,14 +1,8 @@
 
 from OpenGL.GL import *
 from OpenGL.GLU import *
-import pygame
-from pygame.locals import *
 import traceback
-import random
-import pygame.image
 import gl_util, fbo, shader, texture
-import sys
-import time
 
 # adjustable shader parameters for fine tuning
 class ShaderParams(object):
@@ -64,7 +58,7 @@ class ShaderManager(object):
 
 class Context(object):
     """docstring for Context"""
-    def __init__(self, surface, shader_manager):
+    def __init__(self, surface, shader_manager, setmode):
         super(Context, self).__init__()
         self.sourceSurface = surface
         self.screen_size = surface.get_size()
@@ -74,6 +68,7 @@ class Context(object):
         self.mpass_texture1 = None
         self.mpass_texture2 = None
         self.shader_manager = shader_manager
+        self.setmodeCallback = setmode
         self.setup()
 
     def __del__(self):
@@ -102,7 +97,8 @@ class Context(object):
 
     def init(self):
         print 'Context.init(): Screen size=', repr(self.screen_size)
-        pygame.display.set_mode(self.screen_size, OPENGL | DOUBLEBUF | RESIZABLE)
+        #pygame.display.set_mode(self.screen_size, OPENGL | DOUBLEBUF | RESIZABLE)
+        self.setmodeCallback(self.screen_size)
 
         self.color_texture = texture.Texture2D.from_surf(self.sourceSurface)
         source_size = self.sourceSurface.get_size()

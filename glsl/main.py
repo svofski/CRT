@@ -13,7 +13,7 @@ pygame.font.init()
 
 fps_count = 0
 
-def loadSourceAsSurface():
+def loadSource():
     return pygame.image.load('testcard.png' if len(sys.argv) == 1 else sys.argv[1])
 
 def updateCaption(shader_manager, context, fps):
@@ -53,14 +53,17 @@ def get_input(shader_manager, context):
     return True
 
 def main():
-    sourceSurface = loadSourceAsSurface()
+    def SetMode(size):
+        pygame.display.set_mode(size, OPENGL | DOUBLEBUF | RESIZABLE)
+            
+    sourceSurface = loadSource()
 
     pygame.display.set_icon(sourceSurface)
-    pygame.display.set_mode(sourceSurface.get_size(), OPENGL | DOUBLEBUF | RESIZABLE)
+    SetMode(sourceSurface.get_size())
 
     shaderManager = ShaderManager()
     shaderManager.LoadNext()
-    context = Context(sourceSurface, shaderManager)
+    context = Context(sourceSurface, shaderManager, SetMode)
 
     context.init()
     
