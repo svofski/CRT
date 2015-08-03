@@ -43,17 +43,19 @@ def loadSourceAsSurface():
     print len(sys.argv), int(len(sys.argv) == 1)
     return pygame.image.load('testcard.png' if len(sys.argv) == 1 else sys.argv[1])
 
+def updateCaption(fps):
+    pygame.display.set_caption("Composite video simulation %dx%d %3.1ffps" % tuple(list(screen_size) + [fps]))
+
 sourceSurface = loadSourceAsSurface()
 screen_size = sourceSurface.get_size()    
 
-
-icon = pygame.Surface((1,1)); icon.set_alpha(0); pygame.display.set_icon(icon)
-pygame.display.set_caption("Composite video simulation")
+pygame.display.set_icon(sourceSurface)
+updateCaption(0)
 flags = OPENGL|DOUBLEBUF|RESIZABLE
-pygame.display.set_mode(screen_size,flags)
+pygame.display.set_mode(screen_size, flags)
 
 glEnable(GL_BLEND)
-glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+#glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
 
 glEnable(GL_TEXTURE_2D)
 glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE)
@@ -65,13 +67,16 @@ def init():
     global fbos
     global shaders, shaderSources
 
+    print 'init(): Screen size=', repr(screen_size)
     shaders = []
 
-    color_texture = texture.Texture2D.from_surf(sourceSurface)
-    mpass_texture1 = texture.Texture2D.from_empty(screen_size)
-    mpass_texture2 = texture.Texture2D.from_empty(screen_size)
+    pygame.display.set_mode(screen_size, flags)
 
-    fbos = [fbo.FBO2D(screen_size), fbo.FBO2D(screen_size)]
+    color_texture = texture.Texture2D.from_surf(sourceSurface)
+    mpass_texture1 = texture.Texture2D.from_empty(sourceSurface.get_size())
+    mpass_texture2 = texture.Texture2D.from_empty(sourceSurface.get_size())
+
+    fbos = [fbo.FBO2D(sourceSurface.get_size()), fbo.FBO2D(sourceSurface.get_size())]
     fbos[0].attach_color_texture(mpass_texture1, 1)
     fbos[1].attach_color_texture(mpass_texture2, 1)
 
@@ -86,12 +91,11 @@ def deinit():
     del mpass_texture1
     del mpass_texture2
 
-    del fbos[0]
-    del fbos[0]
+    for i in xrange(len(fbos)):
+        del fbos[0]
 
     for i in xrange(len(shaders)):
         del shaders[0]
-    #del shaders[0]
 
 to_add = []
 iterations = -1
@@ -174,23 +178,23 @@ def draw_update(texture):
     draw_screen_quad()
 
 def draw():
-    global iterations
-
     gl_util.set_view_2D(screen_size)
-
-    draw_update(color_texture)
-    
+    draw_update(color_texture)    
     pygame.display.flip()
 
 def main():
     init()
     
+    iter = 0
     clock = pygame.time.Clock()
     while True:
         if not get_input(): break
         draw()
-        clock.tick(10)
-        #print clock.get_fps()
+        clock.tick(60)        
+        iter += 1
+        if iter > 60:
+            iter -= 60
+            updateCaption(clock.get_fps())
 
     deinit()
     
