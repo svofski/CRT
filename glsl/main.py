@@ -56,8 +56,8 @@ flags = OPENGL|DOUBLEBUF|RESIZABLE
 pygame.display.set_mode(screen_size, flags)
 
 glEnable(GL_BLEND)
-#glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
-glBlendFunc(GL_ONE, GL_ZERO)
+glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+#glBlendFunc(GL_ONE, GL_ZERO)
 
 glEnable(GL_TEXTURE_2D)
 glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE)
@@ -194,6 +194,7 @@ def main():
         if not get_input(): break
         draw()
         clock.tick(60)        
+        clock.tick(60) 
         iter += 1
         if iter > 60:
             iter -= 60
