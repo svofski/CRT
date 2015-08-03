@@ -77,21 +77,14 @@ def updateCaption(fps):
     pygame.display.set_caption("Composite video simulation %dx%d [%s: gain=%2.2f invgain=%2.2f] %3.1ffps" % \
         tuple(list(screen_size) + [shader_sets[shader_set], shader_params.filter_gain, shader_params.filter_invgain, fps]))
 
-sourceSurface = loadSourceAsSurface()
-screen_size = sourceSurface.get_size()    
+def setupOpenGL():
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+    #glBlendFunc(GL_ONE, GL_ZERO)
 
-pygame.display.set_icon(sourceSurface)
-updateCaption(0)
-flags = OPENGL|DOUBLEBUF|RESIZABLE
-pygame.display.set_mode(screen_size, flags)
-
-glEnable(GL_BLEND)
-glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
-#glBlendFunc(GL_ONE, GL_ZERO)
-
-glEnable(GL_TEXTURE_2D)
-glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE)
-glTexEnvi(GL_POINT_SPRITE,GL_COORD_REPLACE,GL_TRUE)
+    glEnable(GL_TEXTURE_2D)
+    glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE)
+    glTexEnvi(GL_POINT_SPRITE,GL_COORD_REPLACE,GL_TRUE)
 
 def init():
     global color_texture, mpass_texture1, mpass_texture2
@@ -101,7 +94,7 @@ def init():
     print 'init(): Screen size=', repr(screen_size)
     shaders = []
 
-    pygame.display.set_mode(screen_size, flags)
+    pygame.display.set_mode(screen_size, OPENGL | DOUBLEBUF | RESIZABLE)
 
     color_texture = texture.Texture2D.from_surf(sourceSurface)
     mpass_texture1 = texture.Texture2D.from_empty(sourceSurface.get_size())
@@ -130,10 +123,8 @@ def deinit():
     for i in xrange(len(shaders)):
         del shaders[0]
 
-to_add = []
-iterations = -1
 def get_input():
-    global iterations, screen_size
+    global screen_size
     global shader_params
     
     keys_pressed = pygame.key.get_pressed()
@@ -219,9 +210,20 @@ def draw():
     pygame.display.flip()
 
 def main():
-    global fps_count
+    global fps_count, sourceSurface, screen_size
+
+    sourceSurface = loadSourceAsSurface()
+    screen_size = sourceSurface.get_size()    
+
+    pygame.display.set_icon(sourceSurface)
+    pygame.display.set_mode(screen_size, OPENGL | DOUBLEBUF | RESIZABLE)
+
+    setupOpenGL()
+
     init()
     
+    updateCaption(0)
+
     iter = 0
     clock = pygame.time.Clock()
     while True:
