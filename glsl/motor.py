@@ -20,7 +20,7 @@ class ShaderManager(object):
         super(ShaderManager, self).__init__()
         self.params = ShaderParams()
         self.sources = []
-        self.sets = ["mpass", "oversampling", "singlepass"]
+        self.sets = ["singlepass", "oversampling", "mpass"]
         self.current = -1
         
     def load(self):

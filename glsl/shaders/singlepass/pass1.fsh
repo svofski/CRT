@@ -61,11 +61,10 @@ void main(void) {
     width_ratio = color_texture_sz.x / (FSC / FLINE);
     height_ratio = color_texture_sz.y / VISIBLELINES;
     altv = mod(floor(xy.y * VISIBLELINES + 0.5), 2.0) * PI;
-    invx = 1.0 / color_texture_sz.x;
+    invx = 0.25 / (FSC/FLINE); // equals 4 samples per Fsc period
 
     // lowpass U/V at baseband
     vec2 filtered = vec2(0.0, 0.0);
-    float invx = 1.0 / color_texture_sz.x; // this definitely should be fixed 
     for (int i = 0; i < FIRTAPS; i++) {
         vec2 uv = modem_uv(xy, i - FIRTAPS/2);
         filtered += FIR_GAIN * uv * FIR[i];
