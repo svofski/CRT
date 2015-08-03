@@ -56,11 +56,11 @@ pygame.display.set_mode(screen_size, flags)
 
 glEnable(GL_BLEND)
 #glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+glBlendFunc(GL_ONE, GL_ZERO)
 
 glEnable(GL_TEXTURE_2D)
 glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE)
 glTexEnvi(GL_POINT_SPRITE,GL_COORD_REPLACE,GL_TRUE)
-
 
 def init():
     global color_texture, mpass_texture1, mpass_texture2
@@ -78,7 +78,9 @@ def init():
 
     fbos = [fbo.FBO2D(sourceSurface.get_size()), fbo.FBO2D(sourceSurface.get_size())]
     fbos[0].attach_color_texture(mpass_texture1, 1)
+    fbos[0].set_read(fbos[1], None)
     fbos[1].attach_color_texture(mpass_texture2, 1)
+    fbos[1].set_read(fbos[0], None)
 
     shaders = [shader.Shader([shader.ProgramShaderFragment(source)]) for source in shaderSources]
 
