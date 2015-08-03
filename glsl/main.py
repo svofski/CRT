@@ -108,9 +108,10 @@ def loadSource():
     if sources == None:
         sources = globSources()
         sourceindex = -1
-        if len(sys.argv) > 2:
+        if len(sys.argv) > 1:
             default = sys.argv[1]
         try:
+            print 'default=', default, ' sources=', sources
             sources.remove(default)
         except:
             pass
