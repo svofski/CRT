@@ -5,6 +5,9 @@ uniform sampler2D mpass_texture;
 uniform vec2 color_texture_sz;
 uniform vec2 screen_texture_sz;
 
+uniform float filter_gain;
+uniform float filter_invgain;
+
 #define PI          3.14159265358
 #define FSC         4433618.75
 #define FLINE       15625
@@ -21,8 +24,10 @@ uniform vec2 screen_texture_sz;
 #define FIRTAPS 20
 const float FIR[FIRTAPS] = float[FIRTAPS] (-0.008030271,0.003107906,0.016841352,0.032545161,0.049360136,0.066256720,0.082120150,0.095848433,0.106453014,0.113151423,0.115441842,0.113151423,0.106453014,0.095848433,0.082120150,0.066256720,0.049360136,0.032545161,0.016841352,0.003107906);
 
-#define FIR_GAIN 2.8
-#define FIR_INVGAIN 1.18
+//#define FIR_GAIN 2.8
+//#define FIR_INVGAIN 1.18
+#define FIR_GAIN filter_gain
+#define FIR_INVGAIN filter_invgain
 
 void main(void) {
     vec2 xy = gl_TexCoord[0].st;
