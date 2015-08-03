@@ -7,6 +7,7 @@ import random
 import pygame.image
 import gl_util, fbo, shader, texture
 import sys
+import time
 
 pygame.display.init()
 pygame.font.init()
@@ -18,6 +19,10 @@ fbos = []
 color_texture = None
 mpass_texture1 = None
 mpass_texture2 = None
+
+# adjustable shader parameters for fine tuning
+filter_gain = 1
+filter_invgain = 1.6
 
 def loadShaders():
     global shaderSources
@@ -92,6 +97,7 @@ to_add = []
 iterations = -1
 def get_input():
     global iterations, screen_size
+    global filter_gain, filter_invgain
     
     keys_pressed = pygame.key.get_pressed()
     mouse_buttons = pygame.mouse.get_pressed()
@@ -99,7 +105,21 @@ def get_input():
     for event in pygame.event.get():
         if event.type == QUIT: return False
         elif event.type == KEYDOWN:
-            if event.key == K_ESCAPE: return False
+            if event.key == K_ESCAPE: 
+                return False
+            elif event.key == K_q:
+                filter_gain = filter_gain - 0.01
+            elif event.key == K_w:
+                filter_gain = filter_gain + 0.01
+            elif event.key == K_a:
+                filter_invgain = filter_invgain - 0.01
+            elif event.key == K_s:
+                filter_invgain = filter_invgain + 0.01
+            elif event.key == K_z:
+                filter_invgain = filter_invgain - 0.1
+            elif event.key == K_x:
+                filter_invgain = filter_invgain + 0.1
+            print 'Filter gain = %1.3f invgain = %1.3f' % (filter_gain, filter_invgain)
         elif event.type == VIDEORESIZE:
             screen_size = list(event.size)
             #Resizing messes up the OpenGL context.  Make all our objects again.
@@ -109,17 +129,22 @@ def get_input():
 
 def draw_screen_quad():
     glBegin(GL_QUADS)
-    glTexCoord2f(0,0); glVertex2f(             0,             0)
-    glTexCoord2f(1,0); glVertex2f(screen_size[0],             0)
-    glTexCoord2f(1,1); glVertex2f(screen_size[0],screen_size[1])
-    glTexCoord2f(0,1); glVertex2f(             0,screen_size[1])
+    glTexCoord2f(0, 0); glVertex2f(             0,             0)
+    glTexCoord2f(1, 0); glVertex2f(screen_size[0],             0)
+    glTexCoord2f(1, 1); glVertex2f(screen_size[0], screen_size[1])
+    glTexCoord2f(0, 1); glVertex2f(             0, screen_size[1])
     glEnd()
 
+def clear():
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
 def draw_update(texture):
+    clear()
     for i in xrange(len(shaders) - 1):
         pingpong = i % 2
 
         fbo.FBO2D.set_write(fbos[pingpong])
+
         shader.Shader.use(shaders[i])
         shaders[i].pass_vec2("color_texture_sz", screen_size)
         shaders[i].pass_texture_name(texture, texture.texture_id, "color_texture")
@@ -128,11 +153,6 @@ def draw_update(texture):
         else:
             shaders[i].pass_texture_name(mpass_texture2, mpass_texture2.texture_id, "mpass_texture")
 
-        texture.bind()
-        if pingpong == 1:
-            mpass_texture1.bind()
-        else:
-            mpass_texture2.bind()
         draw_screen_quad()
 
     pingpong = (len(shaders) - 1) % 2
@@ -141,23 +161,21 @@ def draw_update(texture):
     shader.Shader.use(shaders[-1])
     shaders[-1].pass_vec2("color_texture_sz", screen_size)
     shaders[-1].pass_texture_name(texture, texture.texture_id, "color_texture")
+
+    shaders[-1].pass_float("filter_gain", filter_gain)
+    shaders[-1].pass_float("filter_invgain", filter_invgain)
+    shaders[-1].pass_texture_name(texture, texture.texture_id, "color_texture")
+
     if pingpong == 1:
         shaders[-1].pass_texture_name(mpass_texture1, mpass_texture1.texture_id, "mpass_texture")
     else:
         shaders[-1].pass_texture_name(mpass_texture2, mpass_texture2.texture_id, "mpass_texture")
-
-    texture.bind()
-    if pingpong == 1:
-        mpass_texture1.bind()
-    else:
-        mpass_texture2.bind()
 
     draw_screen_quad()
 
 def draw():
     global iterations
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     gl_util.set_view_2D(screen_size)
 
     draw_update(color_texture)
@@ -171,7 +189,7 @@ def main():
     while True:
         if not get_input(): break
         draw()
-        clock.tick(60)
+        clock.tick(10)
         #print clock.get_fps()
 
     deinit()
