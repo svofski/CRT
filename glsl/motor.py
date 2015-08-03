@@ -69,6 +69,7 @@ class Context(object):
         self.mpass_texture2 = None
         self.shader_manager = shader_manager
         self.setmodeCallback = setmode
+        self.passes = []
         self.setup()
 
     def __del__(self):
@@ -76,7 +77,8 @@ class Context(object):
 
     def setup(self):
         glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+        #glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+        glBlendFunc(GL_ONE, GL_ZERO)
         glEnable(GL_TEXTURE_2D)
         glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE)
         glTexEnvi(GL_POINT_SPRITE,GL_COORD_REPLACE,GL_TRUE)
@@ -94,11 +96,22 @@ class Context(object):
 
     def ReloadShaders(self):
         self.shaders = [shader.Shader([shader.ProgramShaderFragment(source)]) for source in self.shader_manager.sources]
+        self.passes = [True] * len(self.shaders)
+
+    def TogglePassEnable(self, passidx):
+        try:
+            self.passes[passidx] = not self.passes[passidx]
+        except:
+            pass
+
+    def GetEnabledPasses(self):
+        return [i for i, dummy in filter(lambda x: x[1] == True, enumerate(self.passes))]
 
     def init(self):
         print 'Context.init(): Screen size=', repr(self.screen_size)
-        #pygame.display.set_mode(self.screen_size, OPENGL | DOUBLEBUF | RESIZABLE)
+        
         self.setmodeCallback(self.screen_size)
+        self.setup()
 
         self.color_texture = texture.Texture2D.from_surf(self.sourceSurface)
         source_size = self.sourceSurface.get_size()
@@ -139,35 +152,65 @@ class Context(object):
     def Draw(self):
         gl_util.set_view_2D(self.screen_size)
         self.clear()
-        for i in xrange(len(self.shaders) - 1):
-            pingpong = i % 2
+        glDisable(GL_TEXTURE_2D)
+        glColor4f(0, 0, 0, 1)
+        enabled = [self.shaders[x] for x in self.GetEnabledPasses()]
 
-            fbo.FBO2D.set_write(self.fbos[pingpong])
-
-            shader.Shader.use(self.shaders[i])
-            self.shaders[i].pass_vec2("color_texture_sz", self.sourceSurface.get_size())
-            self.shaders[i].pass_texture_name(self.color_texture, self.color_texture.texture_id, "color_texture")
-            if pingpong == 1:
-                self.shaders[i].pass_texture_name(self.mpass_texture1, self.mpass_texture1.texture_id, "mpass_texture")
-            else:
-                self.shaders[i].pass_texture_name(self.mpass_texture2, self.mpass_texture2.texture_id, "mpass_texture")
-
-            self.draw_screen_quad()
-
-        pingpong = (len(self.shaders) - 1) % 2
+        # Make sure that everything is cleared
+        shader.Shader.use(None)
+        fbo.FBO2D.set_write(self.fbos[0])
+        glClear(GL_COLOR_BUFFER_BIT)
+        fbo.FBO2D.set_write(self.fbos[1])
+        glClear(GL_COLOR_BUFFER_BIT)
         fbo.FBO2D.set_write(None)
+        glClear(GL_COLOR_BUFFER_BIT)
 
-        shader.Shader.use(self.shaders[-1])
-        self.shaders[-1].pass_vec2("color_texture_sz", self.sourceSurface.get_size())
-        self.shaders[-1].pass_texture_name(self.color_texture, self.color_texture.texture_id, "color_texture")
+        if len(enabled) > 0:
+            for i in xrange(len(enabled) - 1):
+                pingpong = i % 2
 
-        # set additional uniforms from defaults
-        for uniform, value in self.shader_manager.params.__dict__.iteritems():
-            self.shaders[-1].pass_float(uniform, value)
+                fbo.FBO2D.set_write(self.fbos[pingpong])
+                #glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-        if pingpong == 1:
-            self.shaders[-1].pass_texture_name(self.mpass_texture1, self.mpass_texture1.texture_id, "mpass_texture")
-        else:
-            self.shaders[-1].pass_texture_name(self.mpass_texture2, self.mpass_texture2.texture_id, "mpass_texture")
+                shader.Shader.use(enabled[i])
+                enabled[i].pass_vec2("color_texture_sz", self.sourceSurface.get_size())
+                enabled[i].pass_texture_name(self.color_texture, self.color_texture.texture_id, "color_texture")
+                if pingpong == 1:
+                    enabled[i].pass_texture_name(self.mpass_texture1, self.mpass_texture1.texture_id, "mpass_texture")
+                else:
+                    enabled[i].pass_texture_name(self.mpass_texture2, self.mpass_texture2.texture_id, "mpass_texture")
+
+                self.draw_screen_quad()
+
+            pingpong = (len(enabled) - 1) % 2
+            fbo.FBO2D.set_write(None)
+
+            shader.Shader.use(enabled[-1])
+            enabled[-1].pass_vec2("color_texture_sz", self.sourceSurface.get_size())
+            enabled[-1].pass_texture_name(self.color_texture, self.color_texture.texture_id, "color_texture")
+
+            # set additional uniforms from defaults
+            for uniform, value in self.shader_manager.params.__dict__.iteritems():
+                enabled[-1].pass_float(uniform, value)
+
+            if pingpong == 1:
+                enabled[-1].pass_texture_name(self.mpass_texture1, self.mpass_texture1.texture_id, "mpass_texture")
+            else:
+                enabled[-1].pass_texture_name(self.mpass_texture2, self.mpass_texture2.texture_id, "mpass_texture")
 
         self.draw_screen_quad()
+
+    def DrawTexture(self, texture):
+        #glDisable(GL_LIGHTING);
+        shader.Shader.use(None)
+        glColor4f(1,1,1,0.7)
+        texture.bind()
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glEnable(GL_TEXTURE_2D)
+        glBegin(GL_QUADS)
+        glTexCoord2f(0, 0); glVertex2f(                  0,                   0)
+        glTexCoord2f(1, 0); glVertex2f(self.screen_size[0],                   0)
+        glTexCoord2f(1, 1); glVertex2f(self.screen_size[0], self.screen_size[1]/4)
+        glTexCoord2f(0, 1); glVertex2f(                  0, self.screen_size[1]/4)
+        glEnd()
+        glBlendFunc(GL_ONE, GL_ZERO)
