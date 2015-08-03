@@ -12,6 +12,7 @@ import time
 pygame.display.init()
 pygame.font.init()
 
+shader_set = "mpass"
 screen_size = [800,600]
 shaderSources = []
 shaders = []
@@ -30,7 +31,7 @@ def loadShaders():
 
     for i in xrange(1,10):
         try:
-            text = open('shaders/pass%d.fsh' % i, 'r').read()
+            text = open('shaders/%s/pass%d.fsh' % (shader_set, i), 'r').read()
             shaderSources.append(text)
         except:
             break
