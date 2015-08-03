@@ -70,6 +70,7 @@ class Context(object):
         self.shader_manager = shader_manager
         self.setmodeCallback = setmode
         self.passes = []
+        self.sprite = None
         self.setup()
 
     def __del__(self):
@@ -114,7 +115,8 @@ class Context(object):
         self.setup()
 
         self.color_texture = texture.Texture2D.from_surf(self.sourceSurface)
-        source_size = self.sourceSurface.get_size()
+        #source_size = self.sourceSurface.get_size()
+        source_size = self.screen_size
         self.mpass_texture1 = texture.Texture2D.from_empty(source_size)
         self.mpass_texture2 = texture.Texture2D.from_empty(source_size)
 
@@ -126,6 +128,18 @@ class Context(object):
 
         self.ReloadShaders()
         
+
+    def SetSource(self, source):
+        self.sourceSurface = source
+        self.Reinit(source.get_size())
+
+    def Sprite(self, texture, xy, size):
+        if texture == None:
+            self.sprite = None
+        else:
+            self.sprite = texture
+            self.spritexy = xy
+            self.spritesize = size
 
     def deinit(self):
         del self.color_texture
@@ -198,15 +212,16 @@ class Context(object):
             else:
                 enabled[-1].pass_texture_name(self.mpass_texture2, self.mpass_texture2.texture_id, "mpass_texture")
 
-        self.draw_screen_quad()
+        self.draw_screen_quad()        
 
     def DrawTexture(self, texture):
-        #glDisable(GL_LIGHTING);
-        shader.Shader.use(None)
-        glColor4f(1,1,1,0.7)
-        texture.bind()
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_TEXTURE_2D)
+        shader.Shader.use(None)
+        glColor4f(1,1,1,1)
+        glActiveTexture(GL_TEXTURE0)
+        texture.bind()
+        #print 'DrawTexture: bound %d' % texture.texture_id
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glBegin(GL_QUADS)
         glTexCoord2f(0, 0); glVertex2f(                  0,                   0)
         glTexCoord2f(1, 0); glVertex2f(self.screen_size[0],                   0)
@@ -214,3 +229,24 @@ class Context(object):
         glTexCoord2f(0, 1); glVertex2f(                  0, self.screen_size[1]/4)
         glEnd()
         glBlendFunc(GL_ONE, GL_ZERO)
+
+    def DrawSprite(self):
+        if self.sprite != None:
+            glEnable(GL_TEXTURE_2D)
+            shader.Shader.use(None)
+            glColor4f(1,1,1,1)
+            glActiveTexture(GL_TEXTURE0)
+            self.sprite.bind()
+            #print 'DrawSprite: bound %d' % self.sprite.texture_id
+
+            x,y = self.spritexy
+            w,h = self.spritesize
+
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 0); glVertex2f(x, 0)
+            glTexCoord2f(1, 0); glVertex2f(x + w, 0)
+            glTexCoord2f(1, 1); glVertex2f(x + w, y + h)
+            glTexCoord2f(0, 1); glVertex2f(x, y + h)
+            glEnd()
+            glBlendFunc(GL_ONE, GL_ZERO)
