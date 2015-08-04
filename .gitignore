@@ -1,6 +1,4 @@
 
-*.jpg
-
 /*.png
 
 *.pyc
@@ -9,3 +7,5 @@
 glsl/shaders/pass1.fsh.2x
 *.bak
 
+
+BBCHD_testcard_big.jpg
