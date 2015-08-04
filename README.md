@@ -6,8 +6,8 @@ as its analog counterpart and exhibit properties, such as dot crawl and colour b
 
 ![](https://github.com/svofski/CRT/blob/master/crt-screenshot.jpg)
 
-The project contains 2 main parts: purely software simulation and GLSL shader implementation. The GLSL 
-part consists of a Python host which can be used to experiment with any fragment shaders, and the shaders themselves.
+The project contains 2 main parts: purely software simulation, and GLSL shader implementation. The GLSL 
+part consists of a Python host which can be used to experiment with fragment shaders in general, and the shaders themselves.
 
 ## Shaders
 Currently there are 3 different implementations of composite shader that aim to reproduce the same model.
@@ -30,8 +30,9 @@ it has no intermediate passes, it takes colour signal samples at 4x colour subca
 of source texture resolution.
 
 ## Requirements:
-Software-only model: Python 2.7, PyPNG.
-GLSL model: Python 2.7, PyGame, PyOpenGL.
+
+ * Software-only model: Python 2.7, PyPNG
+ * GLSL model: Python 2.7, PyGame, PyOpenGL
 
 ## SDLMESS/SDLMAME compatibility
 This toy is designed with SDLMESS compatibility in mind, so shaders designed with it can be used with 
