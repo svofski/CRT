@@ -1,14 +1,17 @@
-# Software PAL modulation/demodulation experiments
+# Software composite video modulation/demodulation experiments
 
-The idea is to reproduce realistic composite-like artifacting by applying PAL modulation
-and demodulation, like the analog signal. This repository is highly experimental and probably contains no
-user-serviceable code.
+The idea is to reproduce in GLSL shaders realistic composite-like artifacting by applying PAL modulation
+and demodulation. Digital texture, passed through the model of an analog channel, should suffer same effects
+as its analog counterpart and exhibit effects that may be desirable for faithful reproduction of look and feel
+of old computer games, such as dot crawl and colour bleeding.
+
+![](https://github.com/svofski/CRT/blob/master/crt-screenshot.jpg)
 
 The project contains 2 main parts: purely software simulation and GLSL shader implementation. The GLSL 
 part consists of a Python host which can be used to experiment with any fragment shaders, and the shaders themselves.
 
 ## Shaders
-Currently shaders have 3 different implementations that aim to reproduce the same model.
+Currently there are 3 different implementations of composite shader that aim to reproduce the same model.
 ### mpass
 3-stage processing:
  1. modulate source RGB signal to B&W image
@@ -23,7 +26,9 @@ packing 2x more bandwidth in same amount of pixels.
 
 ### singlepass
 I was afraid that this method would be very slow because a lot of things are calculated over and over again
-for the purpose of filtering. But it seems to be doing fine even on slower GPUs. This is the best method.
+for the purpose of filtering. But it seems to be doing fine even on slower GPUs. This is the best method. Because 
+it has no intermediate passes, it takes colour signal samples at 4x colour subcarrier frequency regardless 
+of source texture resolution.
 
 ## Requirements:
 Software-only model: Python 2.7, PyPNG.
