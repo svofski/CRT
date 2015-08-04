@@ -2,8 +2,7 @@
 
 The idea is to reproduce in GLSL shaders realistic composite-like artifacting by applying PAL modulation
 and demodulation. Digital texture, passed through the model of an analog channel, should suffer same effects
-as its analog counterpart and exhibit effects that may be desirable for faithful reproduction of look and feel
-of old computer games, such as dot crawl and colour bleeding.
+as its analog counterpart and exhibit properties, such as dot crawl and colour bleeding, that may be desirable for faithful reproduction of look and feel of old computer games.
 
 ![](https://github.com/svofski/CRT/blob/master/crt-screenshot.jpg)
 
