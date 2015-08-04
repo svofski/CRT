@@ -39,8 +39,8 @@ This toy is designed with SDLMESS compatibility in mind, so shaders designed wit
 SDLMESS almost without modifications. 
 
 ## Acknowledgements
-I cannibalized Ian Mallett's GLSL Game of Life code as initial PyGame/PyOpenGL boilerplate code.
+ * I cannibalized Ian Mallett's GLSL Game of Life code as initial PyGame/PyOpenGL boilerplate code.
 His work can be found here: http://www.geometrian.com/programming/projects/index.php?project=Game%20of%20Life
-
+ * The Engineer’s Guide to Decoding & Encoding http://www.snellgroup.com/documents/engineering-guides/edecod.pdf
 
 
