@@ -11,7 +11,7 @@ import (
 	"strconv"
 )
 
-type Shader struct {
+type ShaderDescriptor struct {
 	index int
 	Name string
 	VertSrc []string
@@ -20,29 +20,28 @@ type Shader struct {
 }
 
 type ShaderManager interface {
-	Current() *Shader;
+	Current() *ShaderDescriptor;
 	LoadNext() 
 }
 
 type shaderStore struct {
 	current int 
-	shaders []*Shader
+	shaders []*ShaderDescriptor
 }
 
 func NewShaderManager() ShaderManager {
-	return &shaderStore{current : -1, shaders: []*Shader{}}	 
+	return &shaderStore{current : -1, shaders: []*ShaderDescriptor{}}	 
 }
 
 func (store *shaderStore) init() {
-	//basepath := "../glsl/shaders"
 	basepath := "shaders"
 	fileinfo, error := ioutil.ReadDir(basepath)
 	if error == nil {
-		channel := make(chan *Shader, len(fileinfo))
+		channel := make(chan *ShaderDescriptor, len(fileinfo))
 
 		for i, dir := range fileinfo {
-			go func(collect chan *Shader, name string, where string, index int) {
-				shader := Shader{index: index, Name: name}
+			go func(collect chan *ShaderDescriptor, name string, where string, index int) {
+				shader := ShaderDescriptor{index: index, Name: name}
 				for i := 1; i < 10; i++ {
 					file := filepath.Join(where, fmt.Sprintf("pass%d.fsh", i))
 					text, _ := ioutil.ReadFile(file)
@@ -77,7 +76,7 @@ func (store *shaderStore) init() {
 			}(channel, dir.Name(), filepath.Join(basepath, dir.Name()), i)
 		}
 
-		collected := make([]*Shader, len(fileinfo))
+		collected := make([]*ShaderDescriptor, len(fileinfo))
 		goodshaders := 0
 		for i := 0; i < len(collected); i++ {
 			shader := <- channel
@@ -86,7 +85,7 @@ func (store *shaderStore) init() {
 				goodshaders++
 			}
 		}
-		store.shaders = make([]*Shader, 0, goodshaders)
+		store.shaders = make([]*ShaderDescriptor, 0, goodshaders)
 		for i := 0; i < len(collected); i++ {
 			if len(collected[i].FragSrc) > 0 {
 				store.shaders = append(store.shaders, collected[i])
@@ -101,7 +100,7 @@ func (store *shaderStore) init() {
 	fmt.Printf("ShaderStore initialized: %d shaders, current = %d\n", len(store.shaders), store.current)
 }
 
-func (store *shaderStore) Current() *Shader {
+func (store *shaderStore) Current() *ShaderDescriptor {
 	if store.current == -1 {
 		store.init()
 	}
@@ -109,5 +108,5 @@ func (store *shaderStore) Current() *Shader {
 }
 
 func (store *shaderStore) LoadNext() {
-
+	store.current = (store.current + 1) % len(store.shaders)
 }

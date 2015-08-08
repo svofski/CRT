@@ -10,8 +10,6 @@ import (
 	"azul3d.org/gfx/window.v2"
 	"azul3d.org/keyboard.v1"
 	"azul3d.org/lmath.v1"
-
-    //"./motor"
 )
 
 var glslVert = []byte(`
@@ -50,6 +48,30 @@ void main()
 }
 `)
 
+func CreateShader(manager ShaderManager, size image.Point) *gfx.Shader {
+    shader := gfx.NewShader(manager.Current().Name)
+    shader.GLSLVert = glslVert
+    shader.GLSLFrag = []byte(manager.Current().FragSrc[0])
+    shader.Inputs["color_texture_sz"] = gfx.Vec3{float32(size.X), float32(size.Y), 0.0}
+    for uniform,value := range *manager.Current().Defaults {
+        shader.Inputs[uniform] = value
+    }
+    fmt.Println("Created shader ", manager.Current().Name)
+    return shader
+}
+
+func updateWindowTitle(w window.Window, descr *ShaderDescriptor) {
+    props := w.Props()
+    props.SetTitle(descr.Name + " {FPS}")
+    w.Request(props)
+}
+
+func updateWindowSize(w window.Window, size image.Point) {
+    props := w.Props()
+    props.SetSize(size.X, size.Y)
+    w.Request(props)
+}
+
 
 func gfxLoop(w window.Window, r gfx.Renderer) {
     shaderManager := NewShaderManager()
@@ -65,13 +87,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     }
     fmt.Println("Loaded image", img.Bounds())
 
-    shader := gfx.NewShader("VulgarShader")
-    shader.GLSLVert = glslVert
-    shader.GLSLFrag = []byte(shaderManager.Current().FragSrc[0])
-    shader.Inputs["color_texture_sz"] = gfx.Vec3{float32(img.Bounds().Max.X), float32(img.Bounds().Max.Y), 0.0}
-    for uniform,value := range *shaderManager.Current().Defaults {
-        shader.Inputs[uniform] = value
-    }
+    shader := CreateShader(shaderManager, img.Bounds().Max)
 
     // Create new texture.
     tex := func(bitmap image.Image) *gfx.Texture {
@@ -125,12 +141,8 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 	camera.SetPos(lmath.Vec3{0, -2, 0})
 
     // resize the window to match image size
-    go func(size image.Point) {
-	    props := w.Props()
-	    props.SetSize(size.X, size.Y)
-	    w.Request(props)
-	    fmt.Printf("Window resize request to %dx%d\n", size.X, size.Y)
-	}(img.Bounds().Max)
+    go updateWindowSize(w, img.Bounds().Max)
+    go updateWindowTitle(w, shaderManager.Current())
 
     go func() {
         // Create a channel of events.
@@ -149,7 +161,12 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 camera.Unlock()
 
             case keyboard.TypedEvent:
-            	if ev.Rune == 'q' {
+            	if ev.Rune == 'n' {
+                    shaderManager.LoadNext()
+                    card.Lock()
+                    card.Shader = CreateShader(shaderManager, img.Bounds().Max)
+                    card.Unlock()
+                    go updateWindowTitle(w, shaderManager.Current())
 
             	}
                 // if ev.Rune == 'm' || ev.Rune == 'M' {
