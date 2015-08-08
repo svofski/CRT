@@ -10,6 +10,8 @@ import (
 	"azul3d.org/gfx/window.v2"
 	"azul3d.org/keyboard.v1"
 	"azul3d.org/lmath.v1"
+
+    //"./motor"
 )
 
 var glslVert = []byte(`
@@ -24,7 +26,9 @@ varying vec2 tc0;
 
 void main()
 {
-        tc0 = TexCoord0;
+        //tc0 = TexCoord0;
+        //gl_TexCoord[0]  = gl_TextureMatrix[0] * gl_MultiTexCoord0;
+        gl_TexCoord[0].st = TexCoord0;
         gl_Position = MVP * vec4(Vertex, 1.0);
 }
 `)
@@ -48,6 +52,8 @@ void main()
 
 
 func gfxLoop(w window.Window, r gfx.Renderer) {
+    shaderManager := NewShaderManager()
+
     f, err := os.Open("../glsl/images/testcard.png")
     if err != nil {
         log.Fatal(err)
@@ -61,7 +67,11 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 
     shader := gfx.NewShader("VulgarShader")
     shader.GLSLVert = glslVert
-    shader.GLSLFrag = glslFrag
+    shader.GLSLFrag = []byte(shaderManager.Current().FragSrc[0])
+    shader.Inputs["color_texture_sz"] = gfx.Vec3{float32(img.Bounds().Max.X), float32(img.Bounds().Max.Y), 0.0}
+    for uniform,value := range *shaderManager.Current().Defaults {
+        shader.Inputs[uniform] = value
+    }
 
     // Create new texture.
     tex := func(bitmap image.Image) *gfx.Texture {
@@ -71,7 +81,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 	    tex.MagFilter = gfx.Nearest // gfx.Linear
 	    tex.Format = gfx.DXT1RGBA
 	    return tex
-	 }(img)
+	}(img)
 
     card := func(ratio float32, texture *gfx.Texture, shader *gfx.Shader) (card *gfx.Object) {    
     	cardMesh := gfx.NewMesh()
@@ -179,5 +189,6 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 }
 
 func main() {
+    //fmt.Println(shaderManager.Current())
 	window.Run(gfxLoop, nil)
 }
