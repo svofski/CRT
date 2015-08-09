@@ -144,14 +144,16 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     go updateWindowSize(w, img.Bounds().Max)
     go updateWindowTitle(w, shaderManager.Current())
 
+    running := true
     go func() {
         // Create a channel of events.
         events := make(chan window.Event, 256)
-
+        var modifier keyboard.Key
         // Have the window notify our channel whenever events occur.
-        w.Notify(events, window.FramebufferResizedEvents|window.KeyboardTypedEvents)
+        w.Notify(events, window.FramebufferResizedEvents|window.KeyboardTypedEvents|window.KeyboardStateEvents)
 
         for e := range events {
+            fmt.Println(e)
             switch ev := e.(type) {
             case window.FramebufferResized:
                 // Update the camera's projection matrix for the new width and
@@ -159,7 +161,20 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 camera.Lock()
                 camera.SetOrtho(r.Bounds(), camNear, camFar)
                 camera.Unlock()
-
+            case keyboard.StateEvent:
+                if ev.Key == keyboard.LeftSuper {
+                    if ev.State == keyboard.Down {
+                        modifier = ev.Key
+                    } else {
+                        modifier = 0
+                    }
+                }
+                if ev.Key == keyboard.Escape {
+                    running = false
+                }
+                if ev.Key == keyboard.Q && modifier == keyboard.LeftSuper {
+                    running = false
+                }
             case keyboard.TypedEvent:
             	if ev.Rune == 'n' {
                     shaderManager.LoadNext()
@@ -169,6 +184,9 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                     go updateWindowTitle(w, shaderManager.Current())
 
             	}
+                if ev.Rune == 0x1b {
+                    fmt.Println("ESC")
+                }
                 // if ev.Rune == 'm' || ev.Rune == 'M' {
                 //     // Toggle mipmapping on the texture.
                 //     tex.Lock()
@@ -184,7 +202,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     }()
 
 
-    for {
+    for running {
         // Center the card in the window.
         b := r.Bounds()
         card.SetPos(lmath.Vec3{float64(b.Dx()) / 2.0, 0, float64(b.Dy()) / 2.0})
@@ -202,7 +220,8 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 
         // Render the whole frame.
         r.Render()
-    }
+    }    
+    w.Close()
 }
 
 func main() {
