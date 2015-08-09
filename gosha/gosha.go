@@ -10,6 +10,7 @@ import (
 	"azul3d.org/gfx/window.v2"
 	"azul3d.org/keyboard.v1"
 	"azul3d.org/lmath.v1"
+    "azul3d.org/clock.v1"
 )
 
 var glslVert = []byte(`
@@ -70,6 +71,43 @@ func updateWindowSize(w window.Window, size image.Point) {
     props := w.Props()
     props.SetSize(size.X, size.Y)
     w.Request(props)
+}
+
+type CommandCode int
+type Command struct {
+    Code CommandCode
+}
+
+const CmdNextShader CommandCode = 1
+const CmdQuit       CommandCode = 2
+const CmdResize     CommandCode = 32
+
+func handleEvents(events chan window.Event, commands chan Command) {
+    var modifier keyboard.Key
+    for e := range events {
+        //fmt.Println(e)
+        switch ev := e.(type) {
+        case window.FramebufferResized:
+            commands <- Command{Code: CmdResize}
+        case keyboard.StateEvent:
+            if ev.Key == keyboard.LeftSuper {
+                if ev.State == keyboard.Down {
+                    modifier = ev.Key
+                } else {
+                    modifier = 0
+                }
+            }
+            if ev.State == keyboard.Down {
+                if ev.Key == keyboard.Escape ||
+                    (ev.Key == keyboard.Q && modifier == keyboard.LeftSuper) {
+                    commands <- Command{Code: CmdQuit}
+                }
+                if ev.Key == keyboard.N {
+                    commands <- Command{Code: CmdNextShader}
+                }
+            }
+        }
+    }
 }
 
 
@@ -144,64 +182,37 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     go updateWindowSize(w, img.Bounds().Max)
     go updateWindowTitle(w, shaderManager.Current())
 
-    running := true
-    go func() {
-        // Create a channel of events.
-        events := make(chan window.Event, 256)
-        var modifier keyboard.Key
-        // Have the window notify our channel whenever events occur.
-        w.Notify(events, window.FramebufferResizedEvents|window.KeyboardTypedEvents|window.KeyboardStateEvents)
+    // Create a channel of events.
+    events := make(chan window.Event, 256)
+    commands := make(chan Command, 256)
+    // Have the window notify our channel whenever events occur.
+    w.Notify(events, window.FramebufferResizedEvents|window.KeyboardTypedEvents|window.KeyboardStateEvents)
 
-        for e := range events {
-            fmt.Println(e)
-            switch ev := e.(type) {
-            case window.FramebufferResized:
+    running := true
+    go handleEvents(events, commands)
+    go func(commands chan Command) {
+        for command := range commands {
+            switch command.Code {
+            case CmdQuit:
+                running = false
+            case CmdResize:
                 // Update the camera's projection matrix for the new width and
                 // height.
                 camera.Lock()
                 camera.SetOrtho(r.Bounds(), camNear, camFar)
                 camera.Unlock()
-            case keyboard.StateEvent:
-                if ev.Key == keyboard.LeftSuper {
-                    if ev.State == keyboard.Down {
-                        modifier = ev.Key
-                    } else {
-                        modifier = 0
-                    }
-                }
-                if ev.Key == keyboard.Escape {
-                    running = false
-                }
-                if ev.Key == keyboard.Q && modifier == keyboard.LeftSuper {
-                    running = false
-                }
-            case keyboard.TypedEvent:
-            	if ev.Rune == 'n' {
-                    shaderManager.LoadNext()
-                    card.Lock()
-                    card.Shader = CreateShader(shaderManager, img.Bounds().Max)
-                    card.Unlock()
-                    go updateWindowTitle(w, shaderManager.Current())
-
-            	}
-                if ev.Rune == 0x1b {
-                    fmt.Println("ESC")
-                }
-                // if ev.Rune == 'm' || ev.Rune == 'M' {
-                //     // Toggle mipmapping on the texture.
-                //     tex.Lock()
-                //     if tex.MinFilter == gfx.LinearMipmapLinear {
-                //         tex.MinFilter = gfx.Linear
-                //     } else {
-                //         tex.MinFilter = gfx.LinearMipmapLinear
-                //     }
-                //     tex.Unlock()
-                // }
+            case CmdNextShader:
+                shaderManager.LoadNext()
+                card.Lock()
+                card.Shader = CreateShader(shaderManager, img.Bounds().Max)
+                card.Unlock()
+                go updateWindowTitle(w, shaderManager.Current())
             }
         }
-    }()
+    }(commands)
 
-
+    clock := clock.New()
+    clock.SetMaxFrameRate(10)
     for running {
         // Center the card in the window.
         b := r.Bounds()
@@ -220,11 +231,11 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 
         // Render the whole frame.
         r.Render()
+        clock.Tick()
     }    
     w.Close()
 }
 
 func main() {
-    //fmt.Println(shaderManager.Current())
 	window.Run(gfxLoop, nil)
 }

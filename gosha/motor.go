@@ -68,7 +68,6 @@ func (store *shaderStore) init() {
 							defaults[split[0]] = float32(value)
 						}
 					}
-					//fmt.Println(defaults)
 				}
 				shader.Defaults = &defaults
 
