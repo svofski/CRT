@@ -49,7 +49,7 @@ void main()
 }
 `)
 
-func CreateShader(manager ShaderManager, size image.Point) *gfx.Shader {
+func createShader(manager ShaderManager, size image.Point) *gfx.Shader {
     shader := gfx.NewShader(manager.Current().Name)
     shader.GLSLVert = glslVert
     shader.GLSLFrag = []byte(manager.Current().FragSrc[0])
@@ -110,6 +110,49 @@ func handleEvents(events chan window.Event, commands chan Command) {
     }
 }
 
+func createCard(ratio float32, texture *gfx.Texture, shader *gfx.Shader) (card *gfx.Object) {    
+    cardMesh := gfx.NewMesh()
+    cardMesh.Vertices = []gfx.Vec3 {
+        // Bottom-left triangle.
+        {-ratio, 0, -1},
+        { ratio, 0, -1},
+        {-ratio, 0,  1},
+
+        // Top-right triangle.
+        {-ratio, 0,  1},
+        { ratio, 0, -1},
+        { ratio, 0,  1},
+    }
+    cardMesh.TexCoords = []gfx.TexCoordSet{
+        {
+            Slice: []gfx.TexCoord{
+                {0, 1},
+                {1, 1},
+                {0, 0},
+
+                {0, 0},
+                {1, 1},
+                {1, 0},
+            },
+        },
+    }
+    // Create a card object.
+    card = gfx.NewObject()
+    card.AlphaMode = gfx.AlphaToCoverage
+    card.Shader = shader
+    card.Textures = []*gfx.Texture{texture}
+    card.Meshes = []*gfx.Mesh{cardMesh}
+    return card
+}
+
+func createTexture(bitmap image.Image) *gfx.Texture {
+    tex := gfx.NewTexture()
+    tex.Source = bitmap
+    tex.MinFilter = gfx.Nearest // gfx.LinearMipmapLinear
+    tex.MagFilter = gfx.Nearest // gfx.Linear
+    tex.Format = gfx.DXT1RGBA
+    return tex
+}
 
 func gfxLoop(w window.Window, r gfx.Renderer) {
     shaderManager := NewShaderManager()
@@ -125,52 +168,9 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     }
     fmt.Println("Loaded image", img.Bounds())
 
-    shader := CreateShader(shaderManager, img.Bounds().Max)
-
-    // Create new texture.
-    tex := func(bitmap image.Image) *gfx.Texture {
-	    tex := gfx.NewTexture()
-	    tex.Source = bitmap
-	    tex.MinFilter = gfx.Nearest // gfx.LinearMipmapLinear
-	    tex.MagFilter = gfx.Nearest // gfx.Linear
-	    tex.Format = gfx.DXT1RGBA
-	    return tex
-	}(img)
-
-    card := func(ratio float32, texture *gfx.Texture, shader *gfx.Shader) (card *gfx.Object) {    
-    	cardMesh := gfx.NewMesh()
-	    cardMesh.Vertices = []gfx.Vec3 {
-            // Bottom-left triangle.
-            {-ratio, 0, -1},
-            { ratio, 0, -1},
-            {-ratio, 0,  1},
-
-            // Top-right triangle.
-            {-ratio, 0,  1},
-            { ratio, 0, -1},
-            { ratio, 0,  1},
-	    }
-	    cardMesh.TexCoords = []gfx.TexCoordSet{
-            {
-                Slice: []gfx.TexCoord{
-                    {0, 1},
-                    {1, 1},
-                    {0, 0},
-
-                    {0, 0},
-                    {1, 1},
-                    {1, 0},
-                },
-            },
-	    }
-	    // Create a card object.
-	    card = gfx.NewObject()
-	    card.AlphaMode = gfx.AlphaToCoverage
-	    card.Shader = shader
-	    card.Textures = []*gfx.Texture{texture}
-	    card.Meshes = []*gfx.Mesh{cardMesh}
-	    return card
-	}(float32(img.Bounds().Max.X) / float32(img.Bounds().Max.Y), tex, shader)
+    shader := createShader(shaderManager, img.Bounds().Max)
+    tex := createTexture(img)
+    card := createCard(float32(img.Bounds().Max.X) / float32(img.Bounds().Max.Y), tex, shader)
 
 	camera := gfx.NewCamera()
 	camNear := 0.0001
@@ -204,7 +204,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
             case CmdNextShader:
                 shaderManager.LoadNext()
                 card.Lock()
-                card.Shader = CreateShader(shaderManager, img.Bounds().Max)
+                card.Shader = createShader(shaderManager, img.Bounds().Max)
                 card.Unlock()
                 go updateWindowTitle(w, shaderManager.Current())
             }
