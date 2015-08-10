@@ -4,9 +4,7 @@
 
 uniform sampler2D Texture0;
 #define color_texture Texture0
-//varying vec2 tc0;
 #define TEXCOORD gl_TexCoord[0].st
-//#define TEXCOORD tc0
 
 //uniform vec2 color_texture_sz;
 uniform vec3 color_texture_sz;
