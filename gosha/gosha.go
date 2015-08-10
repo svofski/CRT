@@ -6,6 +6,7 @@ import (
 	_"math"
 	"image"
 	_ "image/png"
+    "sync"
 	"azul3d.org/gfx.v1"
 	"azul3d.org/gfx/window.v2"
 	"azul3d.org/keyboard.v1"
@@ -49,16 +50,24 @@ void main()
 }
 `)
 
-func createShader(manager ShaderManager, size image.Point) *gfx.Shader {
-    shader := gfx.NewShader(manager.Current().Name)
-    shader.GLSLVert = glslVert
-    shader.GLSLFrag = []byte(manager.Current().FragSrc[0])
-    shader.Inputs["color_texture_sz"] = gfx.Vec3{float32(size.X), float32(size.Y), 0.0}
-    for uniform,value := range *manager.Current().Defaults {
-        shader.Inputs[uniform] = value
-    }
-    fmt.Println("Created shader ", manager.Current().Name)
-    return shader
+func createShaders(manager ShaderManager, size image.Point) []*gfx.Shader {
+    shaders := make([]*gfx.Shader, len(manager.Current().FragSrc))
+    for i, fragSource := range manager.Current().FragSrc {
+        shaders[i] = gfx.NewShader(fmt.Sprintf("%s-pass%d", manager.Current().Name, i+1))
+        shaders[i].GLSLVert = glslVert
+        shaders[i].GLSLFrag = []byte(fragSource)
+        shaders[i].Inputs["color_texture_sz"] = gfx.Vec3{float32(size.X), float32(size.Y), 0.0}
+        for uniform,value := range *manager.Current().Defaults {
+            shaders[i].Inputs[uniform] = value
+        }        
+    }    
+    fmt.Println("Created shaderset ", func() (res []string) { 
+            for _,s := range shaders {
+                res = append(res, s.Name)
+            }
+            return
+        }())
+    return shaders
 }
 
 func updateWindowTitle(w window.Window, descr *ShaderDescriptor) {
@@ -78,9 +87,16 @@ type Command struct {
     Code CommandCode
 }
 
+const CmdLoadShader CommandCode = 0
 const CmdNextShader CommandCode = 1
 const CmdQuit       CommandCode = 2
 const CmdResize     CommandCode = 32
+
+type ShaderTargetPair struct {
+    Shader *gfx.Shader
+    Canvas gfx.Canvas
+    MpassTex *gfx.Texture
+}
 
 func handleEvents(events chan window.Event, commands chan Command) {
     var modifier keyboard.Key
@@ -154,6 +170,24 @@ func createTexture(bitmap image.Image) *gfx.Texture {
     return tex
 }
 
+func createMpassBuffers(r gfx.Renderer, bounds image.Rectangle) (rttTexture []*gfx.Texture, rttCanvas[]gfx.Canvas) {
+    // create 2 textures for mpass ping ponging
+    rttTexture = make([]*gfx.Texture, 2)
+    rttCanvas = make([]gfx.Canvas, 2)
+    for i, _ := range rttTexture {
+        rttTexture[i] = createTexture(nil)
+
+        // Choose a render to texture format.
+        cfg := r.GPUInfo().RTTFormats.ChooseConfig(gfx.Precision{
+            RedBits: 8, GreenBits: 8, BlueBits: 8, AlphaBits: 8,
+        }, true)
+        cfg.Color = rttTexture[i]
+        cfg.Bounds = bounds
+        rttCanvas[i] = r.RenderToTexture(cfg)
+    }
+    return
+}
+
 func gfxLoop(w window.Window, r gfx.Renderer) {
     shaderManager := NewShaderManager()
 
@@ -168,25 +202,33 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     }
     fmt.Println("Loaded image", img.Bounds())
 
-    shader := createShader(shaderManager, img.Bounds().Max)
-    tex := createTexture(img)
-    card := createCard(float32(img.Bounds().Max.X) / float32(img.Bounds().Max.Y), tex, shader)
+    // shaders will be created when CmdLoadShader is processed
+    shaders := []*gfx.Shader{}
+    sourceTexture := createTexture(img)
+    card := createCard(float32(img.Bounds().Max.X) / float32(img.Bounds().Max.Y), nil, nil)
+
+    rttTexture, rttCanvas := createMpassBuffers(r, img.Bounds())
 
 	camera := gfx.NewCamera()
 	camNear := 0.0001
 	camFar := 1000.0
-	camera.SetOrtho(r.Bounds(), camNear, camFar) // this is really weird
 	camera.SetPos(lmath.Vec3{0, -2, 0})
-
-    // resize the window to match image size
-    go updateWindowSize(w, img.Bounds().Max)
-    go updateWindowTitle(w, shaderManager.Current())
 
     // Create a channel of events.
     events := make(chan window.Event, 256)
     commands := make(chan Command, 256)
     // Have the window notify our channel whenever events occur.
     w.Notify(events, window.FramebufferResizedEvents|window.KeyboardTypedEvents|window.KeyboardStateEvents)
+
+    // resize the window to match image size
+    // should be started after event channels are created 
+    // so that the resize notification is handled
+    go updateWindowSize(w, img.Bounds().Max)
+    go updateWindowTitle(w, shaderManager.Current())
+
+    lock := sync.RWMutex{}
+    //targets := []gfx.Canvas{}
+    couples := []ShaderTargetPair{}
 
     running := true
     go handleEvents(events, commands)
@@ -203,17 +245,41 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 camera.Unlock()
             case CmdNextShader:
                 shaderManager.LoadNext()
-                card.Lock()
-                card.Shader = createShader(shaderManager, img.Bounds().Max)
-                card.Unlock()
+                commands <- Command{Code: CmdLoadShader}
+            case CmdLoadShader:
+                lock.Lock()
+
+                shaders = createShaders(shaderManager, img.Bounds().Max)
+                // init render targets: mpass canvases and main renderer
+                couples = make([]ShaderTargetPair, len(shaders) - 1, len(shaders))
+                for i := range couples {
+                    couples[i] = ShaderTargetPair {
+                            Shader: shaders[i],
+                            Canvas: rttCanvas[i % 2],
+                            MpassTex: rttTexture[(i + 1) % 2],
+                        }
+                }
+                couples = append(couples, ShaderTargetPair {
+                        Shader: shaders[len(shaders) - 1],
+                        Canvas: r,
+                        MpassTex: rttTexture[len(shaders) % 2],
+                    })
+
+                lock.Unlock()
                 go updateWindowTitle(w, shaderManager.Current())
             }
         }
     }(commands)
 
+    // send command load the first shader
+    commands <- Command{Code: CmdLoadShader}
+
     clock := clock.New()
     clock.SetMaxFrameRate(10)
+
     for running {
+        lock.Lock()
+
         // Center the card in the window.
         b := r.Bounds()
         card.SetPos(lmath.Vec3{float64(b.Dx()) / 2.0, 0, float64(b.Dy()) / 2.0})
@@ -221,16 +287,19 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
         // Scale the card to fit the window.
         s := float64(b.Dy()) / 2.0 // Card is two units wide, so divide by two.
         card.SetScale(lmath.Vec3{s, s, s})
+        
+        for _, couple := range couples {
+            couple.Canvas.Clear(image.Rect(0, 0, 0, 0), gfx.Color{1, 0, 1, 1})
+            couple.Canvas.ClearDepth(image.Rect(0, 0, 0, 0), 1.0)
 
-        // Clear the entire area (empty rectangle means "the whole area").
-        r.Clear(image.Rect(0, 0, 0, 0), gfx.Color{1, 0, 1, 1})
-        r.ClearDepth(image.Rect(0, 0, 0, 0), 1.0)
+            card.Shader = couple.Shader
+            // Texture0 is source, Texture1 is mpass source
+            card.Textures = []*gfx.Texture{sourceTexture, couple.MpassTex}
+            couple.Canvas.Draw(image.Rect(0, 0, 0, 0), card, camera)
+            couple.Canvas.Render()
+        }
 
-        // Draw the textured card.
-        r.Draw(image.Rect(0, 0, 0, 0), card, camera)
-
-        // Render the whole frame.
-        r.Render()
+        lock.Unlock()
         clock.Tick()
     }    
     w.Close()
