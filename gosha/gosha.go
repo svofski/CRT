@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"; "log"
+	//"os"; "log"
 	_"math"
 	"image"
 	_ "image/png"
@@ -108,6 +108,9 @@ func handleEvents(events chan window.Event, commands chan Command) {
                 if ev.Key == keyboard.N {
                     commands <- Command{Code: CmdNextShader}
                 }
+                if ev.Key == keyboard.M {
+                    commands <- Command{Code: CmdLoadImage}
+                }
             }
         }
     }
@@ -175,21 +178,9 @@ func createMpassBuffers(r gfx.Renderer, bounds image.Rectangle) (rttTexture []*g
     return
 }
 
-func loadImage(filename string) image.Image {
-    f, err := os.Open("../glsl/images/testcard.png")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    img, _, err := image.Decode(f)
-    if err != nil {
-        log.Fatal(err)
-    }
-    return img
-}
-
 func gfxLoop(w window.Window, r gfx.Renderer) {
     shaderManager := NewShaderManager()
+    imageLoader := NewImageLoader("../glsl/images")
 
     var shaders []*gfx.Shader
     var img image.Image
@@ -217,11 +208,13 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
             case CmdQuit:
                 running = false
             case CmdLoadImage:
-                img = loadImage("../glsl/images/testcard.png")
+                img = imageLoader.Next()// loadImage("../glsl/images/testcard.png")
                 if img != nil {
+                    //fmt.Println(img)
                     commands <- Command{Code: CmdImageLoaded}
                 }
             case CmdImageLoaded:
+                lock.Lock()
                 sourceTexture = createTexture(img)
                 card = createCard(float32(img.Bounds().Max.X) / float32(img.Bounds().Max.Y), nil, nil)
                 rttTexture, rttCanvas = createMpassBuffers(r, img.Bounds())
@@ -230,7 +223,11 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 rttCamera.SetOrtho(img.Bounds(), 0.0001, 1000.0)
                 screenCamera = gfx.NewCamera()
                 screenCamera.SetPos(lmath.Vec3{0, -2, 0})
+                lock.Unlock()
                 go updateWindowSize(w, img.Bounds().Max)
+                screenCamera.Lock()
+                screenCamera.SetOrtho(r.Bounds(), 0.0001, 1000.0)
+                screenCamera.Unlock()
                 commands <- Command{Code: CmdLoadShader}
             case CmdResize:
                 // Update the camera's projection matrix for the new width and
