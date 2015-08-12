@@ -119,33 +119,40 @@ func handleEvents(events chan window.Event, commands chan Command) {
     }
 }
 
+/*
+    (0,0) (1,0)
+       *--*
+       | /|
+       |/ |
+       *--*
+    (0,1) (1,1)
+start here
+*/    
 func createCard() (card *gfx.Object) {    
     cardMesh := gfx.NewMesh()
     cardMesh.Vertices = []gfx.Vec3 {
         // Bottom-left triangle.
-        {-1, 0, -1},
-        { 1, 0, -1},
-        {-1, 0,  1},
-
+        {0, 0, 1},
+        {1, 0, 0},
+        {1, 0, 1},
         // Top-right triangle.
-        {-1, 0,  1},
-        { 1, 0, -1},
-        { 1, 0,  1},
+        {0, 0,  1},
+        {0, 0,  0},
+        {1, 0,  0},
     }
     cardMesh.TexCoords = []gfx.TexCoordSet{
         {
             Slice: []gfx.TexCoord{
-                {0, 1},
-                {1, 1},
-                {0, 0},
-
                 {0, 0},
                 {1, 1},
                 {1, 0},
+
+                {0, 0},
+                {0, 1},
+                {1, 1},
             },
         },
     }
-    // Create a card object.
     card = gfx.NewObject()
     card.AlphaMode = gfx.AlphaToCoverage
     card.Meshes = []*gfx.Mesh{cardMesh}
@@ -155,9 +162,10 @@ func createCard() (card *gfx.Object) {
 func createTexture(bitmap image.Image) *gfx.Texture {
     tex := gfx.NewTexture()
     tex.Source = bitmap
-    tex.MinFilter = gfx.Nearest // gfx.LinearMipmapLinear
-    tex.MagFilter = gfx.Nearest // gfx.Linear
+    tex.MinFilter = gfx.LinearMipmapLinear
+    tex.MagFilter = gfx.Linear
     tex.Format = gfx.DXT1RGBA
+    tex.WrapU, tex.WrapV = gfx.Clamp, gfx.Clamp
     return tex
 }
 
@@ -272,11 +280,11 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 
             b := couple.Canvas.Bounds() 
             screenCamera.SetOrtho(b, 0.001, 1000.0)
-            card.SetPos(lmath.Vec3{float64(b.Dx()) / 2.0, 0, float64(b.Dy()) / 2.0})
+            card.SetPos(lmath.Vec3{0, 0, 0})
 
             // Scale the card to fit the window.
-            s := float64(b.Dy()) / 2.0 // Card is two units wide, so divide by two.
-            ratio := float64(b.Max.X) / float64(b.Max.Y);
+            s := float64(b.Dy())
+            ratio := float64(b.Dx()) / float64(b.Dy());
             card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
 
             card.Shader = couple.Shader
