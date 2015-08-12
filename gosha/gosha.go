@@ -225,9 +225,6 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                     commands <- Command{Code: CmdResize}     
                 }
             case CmdResize:
-                lock.Lock()
-                
-                lock.Unlock()
                 commands <- Command{Code: CmdLoadShader}
             case CmdNextShader:
                 shaderManager.LoadNext()
