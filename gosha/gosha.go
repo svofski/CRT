@@ -218,6 +218,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
             case CmdImageLoaded:
                 lock.Lock()
                 sourceTexture = createTexture(img)
+                rttTexture, rttCanvas = createMpassBuffers(r, img.Bounds())
                 lock.Unlock()
                 if !updateWindowSize(w, img.Bounds().Max) {
                     // resize will create mpass buffers, then request shader load
@@ -225,7 +226,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 }
             case CmdResize:
                 lock.Lock()
-                rttTexture, rttCanvas = createMpassBuffers(r, r.Bounds())
+                
                 lock.Unlock()
                 commands <- Command{Code: CmdLoadShader}
             case CmdNextShader:
@@ -275,14 +276,11 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
             b := couple.Canvas.Bounds() 
             screenCamera.SetOrtho(b, 0.001, 1000.0)
             card.SetPos(lmath.Vec3{float64(b.Dx()) / 2.0, 0, float64(b.Dy()) / 2.0})
-            // fmt.Println("Bounds: ", b, "src.b=", sourceTexture.Bounds, 
-            //     " mpass.src.b=", couple.MpassTex.Bounds);
 
             // Scale the card to fit the window.
             s := float64(b.Dy()) / 2.0 // Card is two units wide, so divide by two.
             ratio := float64(b.Max.X) / float64(b.Max.Y);
             card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
-
 
             card.Shader = couple.Shader
             // Texture0 is source, Texture1 is mpass source
