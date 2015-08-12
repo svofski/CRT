@@ -73,6 +73,7 @@ func updateWindowSize(w window.Window, size image.Point) (sizeChanged bool) {
 type CommandCode int
 type Command struct {
     Code CommandCode
+    Value int
 }
 
 const CmdLoadShader     CommandCode = 0
@@ -81,17 +82,18 @@ const CmdQuit           CommandCode = 2
 const CmdResize         CommandCode = 32
 const CmdLoadImage      CommandCode = 33
 const CmdImageLoaded    CommandCode = 34
+const CmdToggleLayer    CommandCode = 35
 
 type ShaderTargetPair struct {
     Shader *gfx.Shader
     Canvas gfx.Canvas
     MpassTex *gfx.Texture
+    Card *gfx.Object
 }
 
 func handleEvents(events chan window.Event, commands chan Command) {
     var modifier keyboard.Key
     for e := range events {
-        //fmt.Println(e)
         switch ev := e.(type) {
         case window.FramebufferResized:
             commands <- Command{Code: CmdResize}
@@ -107,6 +109,9 @@ func handleEvents(events chan window.Event, commands chan Command) {
                 if ev.Key == keyboard.Escape ||
                     (ev.Key == keyboard.Q && modifier == keyboard.LeftSuper) {
                     commands <- Command{Code: CmdQuit}
+                }
+                if ev.Key >= keyboard.One && ev.Key <= keyboard.Nine {
+                    commands <- Command{Code: CmdToggleLayer, Value: int(ev.Key) - int(keyboard.One)}
                 }
                 switch ev.Key {
                     case keyboard.N:
@@ -156,6 +161,8 @@ func createCard() (card *gfx.Object) {
     card = gfx.NewObject()
     card.AlphaMode = gfx.AlphaToCoverage
     card.Meshes = []*gfx.Mesh{cardMesh}
+    card.FaceCulling = gfx.NoFaceCulling
+    fmt.Println("Card culling=", card.FaceCulling)
     return card
 }
 
@@ -202,6 +209,9 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     screenCamera.SetPos(lmath.Vec3{0, -2, 0})
     card := createCard()
 
+    enable := make([]bool, 10)
+    for i, _ := range enable { enable[i] = true }
+
     // Create a channel of events.
     events := make(chan window.Event, 256)
     commands := make(chan Command, 256)
@@ -242,22 +252,26 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 
                 shaders = createShaders(shaderManager, img.Bounds().Max)
                 // init render targets: mpass canvases and main renderer
-                couples = make([]ShaderTargetPair, len(shaders) - 1, len(shaders))
-                for i := range couples {
-                    couples[i] = ShaderTargetPair {
-                            Shader: shaders[i],
-                            Canvas: rttCanvas[i % 2],
-                            MpassTex: rttTexture[(i + 1) % 2],
-                        }
+                couples = make([]ShaderTargetPair, 0, len(shaders))
+                for i, t := 0, 0; i < len(shaders); i++ {
+                    if enable[i] {
+                        copula := ShaderTargetPair {
+                                Shader: shaders[i],
+                                Canvas: rttCanvas[t % 2],
+                                MpassTex: rttTexture[(t + 1) % 2],
+                            }
+                        couples = append(couples, copula)
+                        t++
+                    }
                 }
-                couples = append(couples, ShaderTargetPair {
-                        Shader: shaders[len(shaders) - 1],
-                        Canvas: r,
-                        MpassTex: rttTexture[len(shaders) % 2],
-                    })
-
+                if len(couples) > 0 {
+                    couples[len(couples) - 1].Canvas = r // last one renders to window
+                }
                 lock.Unlock()
                 go updateWindowTitle(w, shaderManager.Current())
+            case CmdToggleLayer:
+                enable[command.Value] = !enable[command.Value]
+                commands <- Command{Code: CmdLoadShader}
             }
         }
     }(commands)
@@ -269,32 +283,49 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     clock.SetMaxFrameRate(70)
 
     for running {
-        for card == nil {
-            runtime.Gosched()
-        }
+        // for card == nil {
+        //     runtime.Gosched()
+        // }
 
         lock.Lock()
-        for _, couple := range couples {
-            couple.Canvas.Clear(image.Rect(0, 0, 0, 0), gfx.Color{1, 0, 1, 1})
-            couple.Canvas.ClearDepth(image.Rect(0, 0, 0, 0), 1.0)
+        if len(couples) > 0 {
+            for _, canvas := range rttCanvas {
+                canvas.Clear(image.Rect(0, 0, 0, 0), gfx.Color{0, 0, 0, 0})
+                canvas.ClearDepth(image.Rect(0, 0, 0, 0), 1.0)
+            }
+            for _, couple := range couples {
+                couple.Canvas.Clear(image.Rect(0, 0, 0, 0), gfx.Color{0, 0, 0, 1})
+                couple.Canvas.ClearDepth(image.Rect(0, 0, 0, 0), 1.0)
 
-            b := couple.Canvas.Bounds() 
-            screenCamera.SetOrtho(b, 0.001, 1000.0)
-            card.SetPos(lmath.Vec3{0, 0, 0})
+                b := couple.Canvas.Bounds() 
+                screenCamera.SetOrtho(b, 0.001, 1000.0)
+                card.SetPos(lmath.Vec3{0, 0, 0})
 
-            // Scale the card to fit the window.
-            s := float64(b.Dy())
-            ratio := float64(b.Dx()) / float64(b.Dy());
-            card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
+                // Scale the card to fit the window.
+                s := float64(b.Dy())
+                ratio := float64(b.Dx()) / float64(b.Dy());
+                card.SetScale(lmath.Vec3{s * ratio, 1.0, -s})
+                //card.SetRot(lmath.Vec3{-180, 0, 0})
+                card.SetPos(lmath.Vec3{0, 0, s})
+                //fmt.Println("Card.Rot=", card.LocalMat4())
+                if couple.Canvas == r {
+                    card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
+                    //card.SetRot(lmath.Vec3{-180, 0, 0})
+                    card.SetPos(lmath.Vec3{0, 0, 0})
+                }
 
-            card.Shader = couple.Shader
-            // Texture0 is source, Texture1 is mpass source
-            card.Textures = []*gfx.Texture{sourceTexture, couple.MpassTex}
-            couple.Canvas.Draw(image.Rect(0, 0, 0, 0), card, screenCamera)
-            couple.Canvas.Render()
+                card.Shader = couple.Shader
+                // Texture0 is source, Texture1 is mpass source
+                card.Textures = []*gfx.Texture{sourceTexture, couple.MpassTex}
+                couple.Canvas.Draw(image.Rect(0, 0, 0, 0), card, screenCamera)
+                couple.Canvas.Render()
+            }
+        } else {
+            r.Clear(image.Rect(0, 0, 0, 0), gfx.Color{1, 0, 1, 1})
+            r.Render()
         }
-
         lock.Unlock()
+
         clock.Tick()
         runtime.Gosched()
     }    
