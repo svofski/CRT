@@ -43,5 +43,4 @@ void main(void) {
 
     float encoded = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
     gl_FragColor = vec4(encoded, encoded, encoded, 1.0);
-    //gl_FragColor = texture2D(color_texture, gl_TexCoord[0].st);
 }

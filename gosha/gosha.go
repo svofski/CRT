@@ -25,11 +25,8 @@ uniform mat4 MVP;
 
 void main()
 {
-        gl_TexCoord[0].st = TexCoord0;
+        gl_TexCoord[0].st = vec2(TexCoord0.x, 1.0 - TexCoord0.y); // flip back azul3d vertical flippance
         gl_Position = MVP * vec4(Vertex, 1.0);
-
-        //gl_TexCoord[0]  = gl_TextureMatrix[0] * gl_MultiTexCoord0;
-        //gl_Position     = ftransform();
 }
 `)
 
@@ -249,7 +246,6 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 commands <- Command{Code: CmdLoadShader}
             case CmdLoadShader:
                 lock.Lock()
-
                 shaders = createShaders(shaderManager, img.Bounds().Max)
                 // init render targets: mpass canvases and main renderer
                 couples = make([]ShaderTargetPair, 0, len(shaders))
@@ -282,45 +278,36 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     clock := clock.New()
     clock.SetMaxFrameRate(70)
 
+    zerorect := image.Rect(0, 0, 0, 0)
     for running {
-        // for card == nil {
-        //     runtime.Gosched()
-        // }
-
         lock.Lock()
         if len(couples) > 0 {
             for _, canvas := range rttCanvas {
-                canvas.Clear(image.Rect(0, 0, 0, 0), gfx.Color{0, 0, 0, 0})
-                canvas.ClearDepth(image.Rect(0, 0, 0, 0), 1.0)
+                canvas.Clear(zerorect, gfx.Color{0, 0, 0, 0})
+                canvas.ClearDepth(zerorect, 1.0)
             }
             for _, couple := range couples {
-                couple.Canvas.Clear(image.Rect(0, 0, 0, 0), gfx.Color{0, 0, 0, 1})
-                couple.Canvas.ClearDepth(image.Rect(0, 0, 0, 0), 1.0)
+                couple.Canvas.Clear(zerorect, gfx.Color{0, 0, 0, 1})
+                couple.Canvas.ClearDepth(zerorect, 1.0)
 
-                b := couple.Canvas.Bounds() 
+                b := img.Bounds()
                 screenCamera.SetOrtho(b, 0.001, 1000.0)
                 card.SetPos(lmath.Vec3{0, 0, 0})
 
                 // Scale the card to fit the window.
                 s := float64(b.Dy())
                 ratio := float64(b.Dx()) / float64(b.Dy());
-                if couple.Canvas == r {
-                    card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
-                    //card.SetRot(lmath.Vec3{-180, 0, 0})
-                    card.SetPos(lmath.Vec3{0, 0, 0})
-                } else {
-                    card.SetScale(lmath.Vec3{s * ratio, 1.0, -s})
-                    card.SetPos(lmath.Vec3{0, 0, s})                    
-                }
+                card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
+                card.SetPos(lmath.Vec3{0, 0, 0})
 
                 card.Shader = couple.Shader
                 // Texture0 is source, Texture1 is mpass source
                 card.Textures = []*gfx.Texture{sourceTexture, couple.MpassTex}
-                couple.Canvas.Draw(image.Rect(0, 0, 0, 0), card, screenCamera)
+                couple.Canvas.Draw(zerorect, card, screenCamera)
                 couple.Canvas.Render()
             }
         } else {
-            r.Clear(image.Rect(0, 0, 0, 0), gfx.Color{1, 0, 1, 1})
+            r.Clear(zerorect, gfx.Color{1, 0, 1, 1})
             r.Render()
         }
         lock.Unlock()

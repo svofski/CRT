@@ -26,7 +26,7 @@ uniform vec2 screen_texture_sz;
 #define fetch(ofs,center,invx) texture2D(mpass_texture, vec2(ofs * invx + center.x, center.y)).x
 
 void main(void) {
-    vec2 xy = gl_TexCoord[0].st;
+    vec2 xy = gl_TexCoord[0].st;// * vec2(1.0, 1.0 + 1.0/VISIBLELINES); - problem in azul3d if odd number of lines, fixed by padding
     float s = texture2D(mpass_texture, xy).x;
 
     float width_ratio = color_texture_sz.x / (FSC / FLINE);
@@ -48,9 +48,6 @@ void main(void) {
     s = clamp(s,       0.0, 1.0);
     u = clamp(u + 0.5, 0.0, 1.0);
     v = clamp(v + 0.5, 0.0, 1.0);
-    //vec3 suv = vec3(s, u - 0.5, v - 0.5);
-    //vec3 rgb = YUV_to_RGB * vec3(suv.x, suv.y, suv.z);
-    //gl_FragColor = vec4(rgb, 1.0);
 
     gl_FragColor = vec4(s, u, v, 1.0);
 }

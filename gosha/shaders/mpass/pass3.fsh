@@ -38,8 +38,8 @@ const float FIR[FIRTAPS] = float[FIRTAPS] (-0.008030271,0.003107906,0.016841352,
 #define FIR_INVGAIN filter_invgain
 
 void main(void) {
-    vec2 xy = gl_TexCoord[0].st;
-    vec3 suv = texture2D(mpass_texture, xy).xyz + vec3(0.0, -0.5, -0.5);
+    vec2 xy = gl_TexCoord[0].st;// * vec2(1.0, 1.0 + 1.0/VISIBLELINES); - problem in azul3d if odd number of lines, fixed by padding
+    vec3 suv = texture2D(mpass_texture, xy).xyz + vec3(0.0, -0.5, -0.5); 
 
     float width_ratio = color_texture_sz.x / (FSC / FLINE);
 
