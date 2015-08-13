@@ -111,9 +111,9 @@ func handleEvents(events chan window.Event, commands chan Command) {
                     commands <- Command{Code: CmdToggleLayer, Value: int(ev.Key) - int(keyboard.One)}
                 }
                 switch ev.Key {
-                    case keyboard.N:
-                        commands <- Command{Code: CmdNextShader}
                     case keyboard.M:
+                        commands <- Command{Code: CmdNextShader}
+                    case keyboard.N:
                         commands <- Command{Code: CmdLoadImage}
                 }
             }
@@ -159,7 +159,6 @@ func createCard() (card *gfx.Object) {
     card.AlphaMode = gfx.AlphaToCoverage
     card.Meshes = []*gfx.Mesh{cardMesh}
     card.FaceCulling = gfx.NoFaceCulling
-    fmt.Println("Card culling=", card.FaceCulling)
     return card
 }
 
@@ -282,19 +281,23 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     for running {
         lock.Lock()
         if len(couples) > 0 {
+            // clear fbo textures
             for _, canvas := range rttCanvas {
                 canvas.Clear(zerorect, gfx.Color{0, 0, 0, 0})
                 canvas.ClearDepth(zerorect, 1.0)
+                canvas.Render() // make sure that the state is finalized
             }
-            for _, couple := range couples {
-                couple.Canvas.Clear(zerorect, gfx.Color{0, 0, 0, 1})
-                couple.Canvas.ClearDepth(zerorect, 1.0)
-
-                b := img.Bounds()
+            for _, couple := range couples {                
+                if couple.Canvas == r {
+                    // clear main context too
+                    couple.Canvas.Clear(zerorect, gfx.Color{0, 0, 1, 1})
+                    couple.Canvas.ClearDepth(zerorect, 1.0)
+                }
+                b := couple.Canvas.Bounds()
                 screenCamera.SetOrtho(b, 0.001, 1000.0)
                 card.SetPos(lmath.Vec3{0, 0, 0})
 
-                // Scale the card to fit the window.
+                // Scale the card to fit the window
                 s := float64(b.Dy())
                 ratio := float64(b.Dx()) / float64(b.Dy());
                 card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
