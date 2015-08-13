@@ -304,14 +304,13 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 // Scale the card to fit the window.
                 s := float64(b.Dy())
                 ratio := float64(b.Dx()) / float64(b.Dy());
-                card.SetScale(lmath.Vec3{s * ratio, 1.0, -s})
-                //card.SetRot(lmath.Vec3{-180, 0, 0})
-                card.SetPos(lmath.Vec3{0, 0, s})
-                //fmt.Println("Card.Rot=", card.LocalMat4())
                 if couple.Canvas == r {
                     card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
                     //card.SetRot(lmath.Vec3{-180, 0, 0})
                     card.SetPos(lmath.Vec3{0, 0, 0})
+                } else {
+                    card.SetScale(lmath.Vec3{s * ratio, 1.0, -s})
+                    card.SetPos(lmath.Vec3{0, 0, s})                    
                 }
 
                 card.Shader = couple.Shader
