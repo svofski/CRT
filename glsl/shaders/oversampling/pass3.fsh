@@ -10,7 +10,9 @@ uniform float filter_invgain;
 
 #define PI          3.14159265358
 #define FSC         4433618.75
-#define FLINE       15625
+#define LINETIME    64.0e-6 // 64 us total
+#define VISIBLE     52.0e-6 // 52 us visible part
+#define FLINE       (1.0/VISIBLE) // =15625 for 64ms, but = 19230 accounting for visible part only
 #define VISIBLELINES 312
 
 #define RGB_to_YIQ  mat3x3( 0.299 , 0.595716 , 0.211456 ,   0.587    , -0.274453 , -0.522591 ,      0.114    , -0.321263 , 0.311135 )

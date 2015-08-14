@@ -14,7 +14,9 @@ uniform vec2 screen_texture_sz;
 
 #define PI          3.14159265358
 #define FSC         4433618.75
-#define FLINE       15625
+#define LINETIME    64.0e-6 // 64 us total
+#define VISIBLE     52.0e-6 // 52 us visible part
+#define FLINE       (1.0/VISIBLE) // =15625 for 64ms, but = 19230 accounting for visible part only
 #define VISIBLELINES 312
 
 #define RGB_to_YIQ  mat3x3( 0.299 , 0.595716 , 0.211456 ,   0.587    , -0.274453 , -0.522591 ,      0.114    , -0.321263 , 0.311135 )
@@ -41,6 +43,14 @@ void main(void) {
     float sinwt = sin(wt);
     float coswt = cos(wt + altv);
 
-    float encoded = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
-    gl_FragColor = vec4(encoded, encoded, encoded, 1.0);
+    //float encoded = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
+    float encoded = yuv.x + yuv.y * sinwt + yuv.z * coswt;
+    float clamped = clamp(encoded, 0.0, 1.0);
+
+    encoded = encoded * 0.5 + 0.25;
+
+    float less = encoded < 0.0 ? 1.0 : 0.0;
+    float more = encoded > 1.0 ? 1.0 : 0.0;
+    gl_FragColor = vec4(encoded, less, more, 1.0);
+    
 }

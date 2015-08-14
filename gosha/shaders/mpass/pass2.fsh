@@ -14,7 +14,9 @@ uniform vec2 screen_texture_sz;
 
 #define PI          3.14159265358
 #define FSC         4433618.75
-#define FLINE       15625
+#define LINETIME    64.0e-6 // 64 us total
+#define VISIBLE     52.0e-6 // 52 us visible part
+#define FLINE       (1.0/VISIBLE) // =15625 for 64ms, but = 19230 accounting for visible part only
 #define VISIBLELINES 312
 
 #define RGB_to_YIQ  mat3x3( 0.299 , 0.595716 , 0.211456 ,   0.587    , -0.274453 , -0.522591 ,      0.114    , -0.321263 , 0.311135 )
@@ -28,6 +30,8 @@ uniform vec2 screen_texture_sz;
 void main(void) {
     vec2 xy = gl_TexCoord[0].st;// * vec2(1.0, 1.0 + 1.0/VISIBLELINES); - problem in azul3d if odd number of lines, fixed by padding
     float s = texture2D(mpass_texture, xy).x;
+    // correct for scale and offest from pass1
+    s = (s - 0.25) * 2;
 
     float width_ratio = color_texture_sz.x / (FSC / FLINE);
     //float width_ratio = 2.0;
@@ -42,7 +46,6 @@ void main(void) {
     // s in [0..1], result in [-0.5..0.5]
     float u = 0.5 * s * sinwt; 
     float v = 0.5 * s * coswt;
-
 
     // offset u, v so that they fit in [0.0, 1.0] range
     s = clamp(s,       0.0, 1.0);
