@@ -50,9 +50,17 @@ func createShaders(manager ShaderManager, size image.Point) []*gfx.Shader {
     return shaders
 }
 
-func updateWindowTitle(w window.Window, descr *ShaderDescriptor) {
+func updateWindowTitle(w window.Window, descr *ShaderDescriptor, enable []bool, rect image.Rectangle) {
     props := w.Props()
-    props.SetTitle(descr.Name + " {FPS}")
+
+    togglor := []byte("*********")
+    for i, _ := range descr.FragSrc {
+        if !enable[i] {
+            togglor[i] = byte('_')
+        }
+    }
+
+    props.SetTitle(descr.Name + " " + rect.Size().String() + " [" + string(togglor[:len(descr.FragSrc)]) + "] {FPS}")
     w.Request(props)
 }
 
@@ -263,7 +271,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                     couples[len(couples) - 1].Canvas = r // last one renders to window
                 }
                 lock.Unlock()
-                go updateWindowTitle(w, shaderManager.Current())
+                go updateWindowTitle(w, shaderManager.Current(), enable, img.Bounds())
             case CmdToggleLayer:
                 enable[command.Value] = !enable[command.Value]
                 commands <- Command{Code: CmdLoadShader}
