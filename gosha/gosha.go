@@ -30,13 +30,14 @@ void main()
 }
 `)
 
-func createShaders(manager ShaderManager, size image.Point) []*gfx.Shader {
+func createShaders(manager ShaderManager, size image.Point, screensize image.Point) []*gfx.Shader {
     shaders := make([]*gfx.Shader, len(manager.Current().FragSrc))
     for i, fragSource := range manager.Current().FragSrc {
         shaders[i] = gfx.NewShader(fmt.Sprintf("%s-pass%d", manager.Current().Name, i+1))
         shaders[i].GLSLVert = glslVert
         shaders[i].GLSLFrag = []byte(fragSource)
         shaders[i].Inputs["color_texture_sz"] = gfx.Vec3{float32(size.X), float32(size.Y), 0.0}
+        shaders[i].Inputs["screen_texture_sz"] = gfx.Vec3{float32(screensize.X), float32(screensize.Y), 0.0}
         for uniform,value := range *manager.Current().Defaults {
             shaders[i].Inputs[uniform] = value
         }        
@@ -200,7 +201,13 @@ func createMpassBuffers(r gfx.Renderer, bounds image.Rectangle) (rttTexture []*g
 }
 
 func gfxLoop(w window.Window, r gfx.Renderer) {
-    shaderManager := NewShaderManager()
+    // Create a channel of events.
+    events := make(chan window.Event, 256)
+    commands := make(chan Command, 256)
+    // Have the window notify our channel whenever events occur.
+    w.Notify(events, window.FramebufferResizedEvents|window.KeyboardTypedEvents|window.KeyboardStateEvents)
+
+    shaderManager := NewShaderManager(commands)
     imageLoader := NewImageLoader("../glsl/images")
 
     var shaders []*gfx.Shader
@@ -216,11 +223,6 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     enable := make([]bool, 10)
     for i, _ := range enable { enable[i] = true }
 
-    // Create a channel of events.
-    events := make(chan window.Event, 256)
-    commands := make(chan Command, 256)
-    // Have the window notify our channel whenever events occur.
-    w.Notify(events, window.FramebufferResizedEvents|window.KeyboardTypedEvents|window.KeyboardStateEvents)
 
     lock := sync.RWMutex{}
     couples := []ShaderTargetPair{}
@@ -253,7 +255,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 commands <- Command{Code: CmdLoadShader}
             case CmdLoadShader:
                 lock.Lock()
-                shaders = createShaders(shaderManager, img.Bounds().Max)
+                shaders = createShaders(shaderManager, img.Bounds().Max, r.Bounds().Max)
                 // init render targets: mpass canvases and main renderer
                 couples = make([]ShaderTargetPair, 0, len(shaders))
                 for i, t := 0, 0; i < len(shaders); i++ {

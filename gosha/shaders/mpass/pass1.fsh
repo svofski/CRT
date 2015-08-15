@@ -43,9 +43,8 @@ void main(void) {
     float sinwt = sin(wt);
     float coswt = cos(wt + altv);
 
-    //float encoded = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
     float encoded = yuv.x + yuv.y * sinwt + yuv.z * coswt;
-    float clamped = clamp(encoded, 0.0, 1.0);
+    //float clamped = clamp(encoded, 0.0, 1.0);
 
     encoded = encoded * 0.5 + 0.25;
 
