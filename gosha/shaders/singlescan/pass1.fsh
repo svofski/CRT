@@ -67,7 +67,7 @@ vec2 modem_uv(vec2 xy, int ofs) {
 #define VFREQ PI*VISIBLELINES
 #define VPHASEDEG 0
 #define VPHASE (VPHASEDEG)*PI/(180.0*VFREQ)
-#define PROMINENCE 0.4
+#define PROMINENCE 0//.4
 #define FLATNESS 1.5
 
 float scanline(float y, float luma) {
@@ -83,8 +83,8 @@ float scanline(float y, float luma) {
 
 #define MASK_PHASE (60.0*PI)/180.0
 #define MASK_SCALE 6 // works great but is too large for irl
-#define MVFREQ (2.0*PI*screen_texture_sz.y/MASK_SCALE) * 2
-#define HFREQ (2.0*PI*screen_texture_sz.x/MASK_SCALE) * (screen_texture_sz.y/screen_texture_sz.y)
+#define MVFREQ (2.0*PI*(screen_texture_sz.y)/MASK_SCALE) * 2
+#define HFREQ (2.0*PI*(screen_texture_sz.x)/MASK_SCALE)
 
 #define GFREQ HFREQ*2
 #define G0  -0 // offsetting grille phase may improve colour, but tends to distort triads
@@ -93,7 +93,7 @@ float scanline(float y, float luma) {
 #define GB ((G0+240.0)*PI/180.0)
 
 vec3 mask(vec2 xy, float luma, vec3 rgb) {
-    const float triads = 1.0;//0.7;
+    const float triads = 1;
     float r = (1.0-triads) + clamp(sin(xy.x * GFREQ + GR), 0.0, triads);
     float g = (1.0-triads) + clamp(sin(xy.x * GFREQ + GG), 0.0, triads);
     float b = (1.0-triads) + clamp(sin(xy.x * GFREQ + GB), 0.0, triads);
@@ -101,7 +101,6 @@ vec3 mask(vec2 xy, float luma, vec3 rgb) {
     float powa = 1.0 - clamp(luma, 0.0, 0.8);
     float fu = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), 0.01, 2.0), powa);
     xy.y += (1.1 + 0.1*(-rgb.r*r+rgb.g*g+rgb.b*b))/screen_texture_sz.y * MASK_SCALE;
-    //xy.y += 1.2/screen_texture_sz.y * MASK_SCALE;
     float fv = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), 0.01, 2.0), powa);
     float maskvalue = clamp(fu + fv, 0.0, 1.0);
 

@@ -62,7 +62,7 @@ vec2 modem_uv(vec2 xy, int ofs) {
 #define VFREQ PI*VISIBLELINES
 #define VPHASEDEG 0
 #define VPHASE (VPHASEDEG)*PI/(180.0*VFREQ)
-#define PROMINENCE 0.4
+#define PROMINENCE 0//.4
 #define FLATNESS 1.5
 
 float scanline(float y, float luma) {
@@ -77,9 +77,9 @@ float scanline(float y, float luma) {
 }
 
 #define MASK_PHASE (60.0*PI)/180.0
-#define MASK_SCALE 6 // works great but is too large for irl
+#define MASK_SCALE 6 
 #define MVFREQ (2.0*PI*screen_texture_sz.y/MASK_SCALE) * 2
-#define HFREQ (2.0*PI*screen_texture_sz.x/MASK_SCALE) * (screen_texture_sz.y/screen_texture_sz.y)
+#define HFREQ (2.0*PI*(screen_texture_sz.x)/MASK_SCALE)
 
 #define GFREQ HFREQ*2
 #define G0  -0 // offsetting grille phase may improve colour, but tends to distort triads
@@ -138,6 +138,5 @@ void main(void) {
     vec3 gammaBoost = vec3(1.0/1.35, 1.0/1.55, 1.0/1.95);
     //gammaBoost *= 0.6;
     gl_FragColor.rgb = pow(gl_FragColor.rgb, gammaBoost);
-
 }
 
