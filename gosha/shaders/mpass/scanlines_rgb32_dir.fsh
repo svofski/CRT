@@ -1,28 +1,16 @@
 #version 120
 
-//uniform sampler2D color_texture;
-//uniform sampler2D mpass_texture;
-
-uniform sampler2D Texture0;
-uniform sampler2D Texture1;
-#define color_texture Texture0
-#define mpass_texture Texture1
-
-
-uniform vec3 color_texture_sz;
-uniform vec3 screen_texture_sz;
-//uniform vec2 color_texture_sz;
-//uniform vec2 screen_texture_sz;
-
-uniform float filter_gain;
-uniform float filter_invgain;
+uniform sampler2D color_texture;
+uniform sampler2D mpass_texture;
+uniform vec2 color_texture_sz;
+uniform vec2 screen_texture_sz;
 
 #define PI          3.14159265358
 #define FSC         4433618.75
 #define LINETIME    64.0e-6 // 64 us total
 #define VISIBLE     52.0e-6 // 52 us visible part
 #define FLINE       (1.0/VISIBLE) // =15625 for 64ms, but = 19230 accounting for visible part only
-#define VISIBLELINES 225.0//(576.0/2.0)//312.0
+#define VISIBLELINES 225.0
 
 #define RGB_to_YIQ  mat3x3( 0.299 , 0.595716 , 0.211456 ,   0.587    , -0.274453 , -0.522591 ,      0.114    , -0.321263 , 0.311135 )
 #define YIQ_to_RGB  mat3x3( 1.0   , 1.0      , 1.0      ,   0.9563   , -0.2721   , -1.1070   ,      0.6210   , -0.6474   , 1.7046   )
@@ -36,7 +24,7 @@ uniform float filter_invgain;
 #define VFREQ PI*VISIBLELINES
 #define VPHASEDEG 90
 #define VPHASE (VPHASEDEG)*PI/(180.0*VFREQ)
-#define PROMINENCE 0.5
+#define PROMINENCE 0.6
 #define FLATNESS 1
 
 #define MASKFREQ VFREQ*2
@@ -74,14 +62,14 @@ float scanline(float y, vec3 grille) {
     return sinw;
 }
 
-#define MASK_SCALE 3.4//6.8
+#define MASK_SCALE 3.4
 #define MVFREQ (2.0*PI*screen_texture_sz.y/MASK_SCALE)
-#define HFREQ (2.0*PI*screen_texture_sz.x/MASK_SCALE)*1.7
+#define HFREQ (2.0*PI*screen_texture_sz.x/MASK_SCALE)*0.9 // 1.7
 
 float mask(vec2 xy) {
-    float fu = pow(clamp(sin(xy.x * HFREQ) * sin(xy.y * MVFREQ), 0.2, 1.0), 0.6);
+    float fu = pow(clamp(sin(xy.x * HFREQ) * sin(xy.y * MVFREQ), 0.2, 1.0), 0.4);
     xy.x += PI/2.0/VFREQ;
-    float fv = pow(clamp(sin(xy.x * HFREQ) * sin(xy.y * MVFREQ), 0.2, 1.0), 0.6);
+    float fv = pow(clamp(sin(xy.x * HFREQ) * sin(xy.y * MVFREQ), 0.2, 1.0), 0.4);
     return fu + fv;
 }
 
@@ -91,7 +79,7 @@ void main(void) {
     vec3 rgb = texture2D(mpass_texture, xy).xyz;
 
     // scanlines
-    float scan = scanline(xy.y, 0*vec3(1.0, 1.0, 1.0));
+    float scan = scanline(xy.y, 0.2*vec3(1.0, 1.0, 1.0));
 
     float mask = scan * mask(xy);
 

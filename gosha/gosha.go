@@ -38,6 +38,7 @@ func createShaders(manager ShaderManager, size image.Point, screensize image.Poi
         shaders[i].GLSLFrag = []byte(fragSource)
         shaders[i].Inputs["color_texture_sz"] = gfx.Vec3{float32(size.X), float32(size.Y), 0.0}
         shaders[i].Inputs["screen_texture_sz"] = gfx.Vec3{float32(screensize.X), float32(screensize.Y), 0.0}
+        fmt.Println("screen texture sz", shaders[i].Inputs["screen_texture_sz"])
         for uniform,value := range *manager.Current().Defaults {
             shaders[i].Inputs[uniform] = value
         }        
