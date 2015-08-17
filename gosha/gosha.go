@@ -61,8 +61,11 @@ func updateWindowTitle(w window.Window, descr *ShaderDescriptor, enable []bool, 
             togglor[i] = byte('_')
         }
     }
-
-    props.SetTitle(descr.Name + " " + rect.Size().String() + " [" + string(togglor[:len(descr.FragSrc)]) + "] {FPS}")
+    width, height := props.Size()
+    size := image.Point{width, height}
+    props.SetTitle(descr.Name + " " + rect.Size().String() +
+        "->" + size.String() +
+         " [" + string(togglor[:len(descr.FragSrc)]) + "] {FPS}")
     w.Request(props)
 }
 
@@ -73,6 +76,7 @@ func updateWindowSize(w window.Window, size image.Point) (sizeChanged bool) {
         return false
     }
     props.SetSize(size.X, size.Y)
+
     w.Request(props)
     return true
 }
@@ -90,6 +94,7 @@ const CmdResize         CommandCode = 32
 const CmdLoadImage      CommandCode = 33
 const CmdImageLoaded    CommandCode = 34
 const CmdToggleLayer    CommandCode = 35
+const CmdToggleMSAA     CommandCode = 36
 
 type ShaderTargetPair struct {
     Shader *gfx.Shader
@@ -125,6 +130,8 @@ func handleEvents(events chan window.Event, commands chan Command) {
                         commands <- Command{Code: CmdNextShader}
                     case keyboard.N:
                         commands <- Command{Code: CmdLoadImage}
+                    case keyboard.A:
+                        commands <- Command{Code: CmdToggleMSAA}
                 }
             }
         }
@@ -245,7 +252,9 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 sourceTexture = createTexture(img)
                 rttTexture, rttCanvas = createMpassBuffers(r, img.Bounds())
                 lock.Unlock()
-                if !updateWindowSize(w, img.Bounds().Max) {
+                basesize := img.Bounds().Max // 1920
+                //basesize := image.Point{img.Bounds().Max.X,int(float32(img.Bounds().Max.X)*0.75)}
+                if !updateWindowSize(w, basesize) {
                     // resize will create mpass buffers, then request shader load
                     commands <- Command{Code: CmdResize}     
                 }
@@ -278,6 +287,10 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
             case CmdToggleLayer:
                 enable[command.Value] = !enable[command.Value]
                 commands <- Command{Code: CmdLoadShader}
+            case CmdToggleMSAA:
+                lock.Lock()
+                r.SetMSAA(!r.MSAA())
+                lock.Unlock()
             }
         }
     }(commands)
@@ -333,5 +346,10 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 }
 
 func main() {
-	window.Run(gfxLoop, nil)
+    props := window.NewProps()
+    //props.SetDecorated(false)
+    props.SetPrecision(gfx.Precision{
+            RedBits: 8, GreenBits: 8, BlueBits: 8, AlphaBits: 8, Samples: 4,
+        })
+	window.Run(gfxLoop, props)
 }
