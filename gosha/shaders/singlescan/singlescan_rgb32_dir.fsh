@@ -58,12 +58,33 @@ vec2 modem_uv(vec2 xy, int ofs) {
     return vec2(signal * sinwt, signal * coswt);
 }
 
+#define COMPOSITE
 
-#define VFREQ PI*VISIBLELINES
-#define VPHASEDEG 0
+#define VFREQ PI*(color_texture_sz.y)/1.0 // correct scanlines
+#define VPHASEDEG 0 // 0 for gosha, 90 for MESS
 #define VPHASE (VPHASEDEG)*PI/(180.0*VFREQ)
-#define PROMINENCE 0//.4
-#define FLATNESS 1.5
+#define PROMINENCE 0.4
+#define FLATNESS 0.6
+
+#define MASK_PHASE 0
+#define MASK_SCALE 6 // works great but is too large for irl
+#define MVFREQ (screen_texture_sz.y * (2.0*PI/MASK_SCALE) * 2.0)
+#define HFREQ  (screen_texture_sz.x * (2.0*PI/MASK_SCALE))
+
+// 0.0 = Maximal masking, 1.0 = No mask
+#define MASK_CUTOFF 0.01
+// 0.0 = Strongest RGB triads, 1.0 = No triads effect
+#define TRIADS_CUTOFF 0.5
+// 0.0 = No triads, 1.0 = sharpest triads
+#define TRIADS_MIX 1
+
+#define GFREQ HFREQ*2
+// offsetting grille phase may improve colour, but tends to distort triads
+#define G0 0
+#define GR ((G0+0)*PI/180.0)
+#define GG (-(G0+120.0)*PI/180.0)
+#define GB (-(G0+240.0)*PI/180.0)
+
 
 float scanline(float y, float luma) {
     // scanlines
@@ -76,41 +97,47 @@ float scanline(float y, float luma) {
     return sinw;
 }
 
-#define MASK_PHASE (60.0*PI)/180.0
-#define MASK_SCALE 6 
-#define MVFREQ (2.0*PI*screen_texture_sz.y/MASK_SCALE) * 2
-#define HFREQ (2.0*PI*(screen_texture_sz.x)/MASK_SCALE)
-
-#define GFREQ HFREQ*2
-#define G0  -0 // offsetting grille phase may improve colour, but tends to distort triads
-#define GR ((G0+0)*PI/180.0)
-#define GG ((G0+120.0)*PI/180.0)
-#define GB ((G0+240.0)*PI/180.0)
+const vec3 triplets[3] = vec3[3] (
+    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    vec3(0.0, 0.0, 1.0));
 
 vec3 mask(vec2 xy, float luma, vec3 rgb) {
-    const float triads = 1.0;//0.7;
-    float r = (1.0-triads) + clamp(sin(xy.x * GFREQ + GR), 0.0, triads);
-    float g = (1.0-triads) + clamp(sin(xy.x * GFREQ + GG), 0.0, triads);
-    float b = (1.0-triads) + clamp(sin(xy.x * GFREQ + GB), 0.0, triads);
+    // calculate rgb stripes
+    float wt = xy.x * GFREQ;
+
+    //vec3 triads = triplets[int(mod(int(gl_FragCoord.x), 3))];
+
+    vec3 triads = vec3(sin(wt + GR), sin(wt + GG), sin(wt + GB));
+
+    //triads = (1.0 - TRIADS_MIX) + clamp(triads, TRIADS_CUTOFF, 1.0);
+    triads = (1.0 - TRIADS_MIX) + step(TRIADS_CUTOFF, triads);
+
+    // calculate shadow mask spots
 
     float powa = 1.0 - clamp(luma, 0.0, 0.8);
-    float fu = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), 0.01, 2.0), powa);
-    xy.y += (1.1 + 0.1*(-rgb.r*r+rgb.g*g+rgb.b*b))/screen_texture_sz.y * MASK_SCALE;
-    //xy.y += 1.2/screen_texture_sz.y * MASK_SCALE;
-    float fv = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), 0.01, 2.0), powa);
-    float maskvalue = clamp(fu + fv, 0.0, 1.0);
+    float fu = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), MASK_CUTOFF, 1.0), powa);
+    float astigmatism = dot(vec3(-1.0, 1.0, 1.0) * triads, rgb);
+    xy.y += (1.1 + 0.1*astigmatism)/screen_texture_sz.y * MASK_SCALE;
+    float fv = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), MASK_CUTOFF, 1.0), powa);
+    float maskvalue = clamp(fu + fv, MASK_CUTOFF, 1.0);
 
+    return maskvalue * triads;
+}
 
-    return vec3(maskvalue * r, maskvalue * g, maskvalue * b);
+vec3 testtriplets() {
+    int fragx = int(gl_FragCoord.x);
+    return triplets[int(mod(fragx, 3))];    
 }
 
 
 void main(void) {
     vec2 xy = gl_TexCoord[0].st;
+    invx = 0.25 / (FSC/FLINE);
+#ifdef COMPOSITE 
     width_ratio = color_texture_sz.x / (FSC / FLINE);
     height_ratio = 1.0; 
     altv = mod(floor(xy.y * VISIBLELINES + 0.5), 2.0) * PI;
-    invx = 0.25 / (FSC/FLINE);
 
     // lowpass U/V at baseband
     vec2 filtered = vec2(0.0, 0.0);
@@ -129,14 +156,19 @@ void main(void) {
     vec3 yuv_result = vec3(luma, filtered.x, filtered.y);
 
     vec3 rgb = YUV_to_RGB * yuv_result;
+#else
+    vec3 rgb = fetch(0, xy, invx).xyz;
+    float luma = (RGB_to_YUV * rgb).x;
+#endif    
 
     // scanlines
     float scan = scanline(xy.y, luma);
     vec3 mask = scan * mask(xy, luma, rgb);
     rgb = rgb * mask;
     gl_FragColor = vec4(rgb, 1.0);
-    vec3 gammaBoost = vec3(1.0/1.35, 1.0/1.55, 1.0/1.95);
-    //gammaBoost *= 0.6;
+    vec3 gammaBoost = vec3(1.0/1.55, 1.0/1.35, 1.0/1.55);
+    //vec3 gammaBoost = vec3(1.0/1.95, 1.0/1.55, 1.0/1.65);
+    gammaBoost *= 1.3;
     gl_FragColor.rgb = pow(gl_FragColor.rgb, gammaBoost);
 }
 
