@@ -64,11 +64,11 @@ vec2 modem_uv(vec2 xy, int ofs) {
 }
 
 
-#define VFREQ PI*VISIBLELINES/2.0
+#define VFREQ PI*(color_texture_sz.y)/2.0 // correct scanlines
 #define VPHASEDEG 0
 #define VPHASE (VPHASEDEG)*PI/(180.0*VFREQ)
 #define PROMINENCE 0.8
-#define FLATNESS 1.5
+#define FLATNESS 0.6
 
 float scanline(float y, float luma) {
     // scanlines
@@ -81,35 +81,47 @@ float scanline(float y, float luma) {
     return sinw;
 }
 
-#define MASK_PHASE 0//(60.0*PI)/180.0
+#define MASK_PHASE 0
 #define MASK_SCALE 6 // works great but is too large for irl
 #define MVFREQ (screen_texture_sz.y * (2.0*PI/MASK_SCALE) * 2.0)
 #define HFREQ  (screen_texture_sz.x * (2.0*PI/MASK_SCALE))
 
+// 0.0 = Maximal masking, 1.0 = No mask
+#define MASK_CUTOFF 0.0
+// 0.0 = Strongest RGB triads, 1.0 = No triads effect
+#define TRIADS_CUTOFF 0.0
+// 0.0 = No triads, 1.0 = sharpest triads
+#define TRIADS_MIX 1.0
+
 #define GFREQ HFREQ*2
-#define G0 0 // offsetting grille phase may improve colour, but tends to distort triads
+// offsetting grille phase may improve colour, but tends to distort triads
+#define G0 0
 #define GR ((G0+0)*PI/180.0)
-#define GG ((G0+120.0)*PI/180.0)
-#define GB ((G0+240.0)*PI/180.0)
+#define GG (-(G0+120.0)*PI/180.0)
+#define GB (-(G0+240.0)*PI/180.0)
 
 float prune(float val, float cutoff, float max) {
     return val >= cutoff ? clamp(val, cutoff, max) : 0;
 }
 
 vec3 mask(vec2 xy, float luma, vec3 rgb) {
-    const float triads = 1.0;
-    float r = (1.0-triads) + clamp(sin(xy.x * GFREQ + GR), 0.0, triads);
-    float g = (1.0-triads) + clamp(sin(xy.x * GFREQ + GG), 0.0, triads);
-    float b = (1.0-triads) + clamp(sin(xy.x * GFREQ + GB), 0.0, triads);
+    // calculate rgb stripes
+    float wt = xy.x * GFREQ;
+    vec3 triads = vec3(sin(wt + GR), sin(wt + GG), sin(wt + GB));
+    triads = (1.0 - TRIADS_MIX) + clamp(triads, TRIADS_CUTOFF, 1.0);
+
+    triads = step(0.55, triads);
+
+    // calculate shadow mask spots
 
     float powa = 1.0 - clamp(luma, 0.0, 0.8);
-    float fu = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), 0.01, 2.0), powa);
-    xy.y += (1.1 + 0.1*(-rgb.r*r+rgb.g*g+rgb.b*b))/screen_texture_sz.y * MASK_SCALE;
-    float fv = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), 0.01, 2.0), powa);
-    float maskvalue = clamp(fu + fv, 0.0, 1.0);
+    float fu = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), MASK_CUTOFF, 1.0), powa);
+    float astigmatism = dot(vec3(-1.0, 1.0, 1.0) * triads, rgb);
+    xy.y += (1.1 + 0.1*astigmatism)/screen_texture_sz.y * MASK_SCALE;
+    float fv = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), MASK_CUTOFF, 1.0), powa);
+    float maskvalue = clamp(fu + fv, MASK_CUTOFF, 1.0);
 
-
-    return vec3(maskvalue * r, maskvalue * g, maskvalue * b);
+    return maskvalue * triads;
 }
 
 
@@ -146,8 +158,8 @@ void main(void) {
     rgb = rgb * mask;
     gl_FragColor = vec4(rgb, 1.0);
     //vec3 gammaBoost = vec3(1.0/1.35, 1.0/1.55, 1.0/1.95);
-    vec3 gammaBoost = vec3(1.0/1.95, 1.0/1.95, 1.0/1.95);
-    //gammaBoost *= 0.6;
+    vec3 gammaBoost = vec3(1.0/1.95, 1.0/1.55, 1.0/1.65);
+    gammaBoost *= 1.3;
     gl_FragColor.rgb = pow(gl_FragColor.rgb, gammaBoost);
 
 }
