@@ -63,33 +63,15 @@ vec2 modem_uv(vec2 xy, int ofs) {
     return vec2(signal * sinwt, signal * coswt);
 }
 
-//#define COMPOSITE
+#define COMPOSITE
+// Hard triads are hard bound to pixels, they correspond to MASK_SCALE 6
+//#define HARD_TRIADS
 
-#define VFREQ PI*(color_texture_sz.y)/1.0 // correct scanlines
+#define VFREQ PI*(color_texture_sz.y)/1.0 // correct scanlines = 1
 #define VPHASEDEG 0 // 0 for gosha, 90 for MESS
 #define VPHASE (VPHASEDEG)*PI/(180.0*VFREQ)
-#define PROMINENCE 0.4
+#define PROMINENCE 0
 #define FLATNESS 0.6
-
-#define MASK_PHASE 0
-#define MASK_SCALE 6 // works great but is too large for irl
-#define MVFREQ (screen_texture_sz.y * (2.0*PI/MASK_SCALE) * 2.0)
-#define HFREQ  (screen_texture_sz.x * (2.0*PI/MASK_SCALE))
-
-// 0.0 = Maximal masking, 1.0 = No mask
-#define MASK_CUTOFF 0.01
-// 0.0 = Strongest RGB triads, 1.0 = No triads effect
-#define TRIADS_CUTOFF 0.5
-// 0.0 = No triads, 1.0 = sharpest triads
-#define TRIADS_MIX 1
-
-#define GFREQ HFREQ*2
-// offsetting grille phase may improve colour, but tends to distort triads
-#define G0 0
-#define GR ((G0+0)*PI/180.0)
-#define GG (-(G0+120.0)*PI/180.0)
-#define GB (-(G0+240.0)*PI/180.0)
-
 
 float scanline(float y, float luma) {
     // scanlines
@@ -102,32 +84,42 @@ float scanline(float y, float luma) {
     return sinw;
 }
 
+// BGR pattern for reproducing triplets on for RGB LCD displays plus mask
 const vec3 triplets[3] = vec3[3] (
-    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 0.0, 1.0),
     vec3(0.0, 1.0, 0.0),
-    vec3(0.0, 0.0, 1.0));
+    vec3(1.0, 0.0, 0.0)
+    );
+
+const float hsofties[3] = float[3] (1.0, 0.0, 1.0);
+
+#define HORZ_SOFT 0.2
+#define VERT_SOFT 0.2 
 
 vec3 mask(vec2 xy, float luma, vec3 rgb) {
     // calculate rgb stripes
-    float wt = xy.x * GFREQ;
+    int xmod = int(mod(int(gl_FragCoord.x), 3));
+    vec3 triads = triplets[xmod];
+    float soft = hsofties[xmod];
+    triads.g += VERT_SOFT * soft * (triads.r + triads.b);
 
-    //vec3 triads = triplets[int(mod(int(gl_FragCoord.x), 3))];
+    // B G R x x x -- pattern A: y mod 3 == 0 
+    // B G R B G R
+    // x x x B G R -- pattern B: y mod 3 == 2
 
-    vec3 triads = vec3(sin(wt + GR), sin(wt + GG), sin(wt + GB));
+    // pattern A: 1 1 1 0 0 0
+    float A = step(0.5, mod(gl_FragCoord.x, 6.0) / 6.0);
+    // pattern B: 0 0 0 1 1 1
+    float B = 1.0 - A;
 
-    //triads = (1.0 - TRIADS_MIX) + clamp(triads, TRIADS_CUTOFF, 1.0);
-    triads = (1.0 - TRIADS_MIX) + step(TRIADS_CUTOFF, triads);
+    float patterns[3];
 
-    // calculate shadow mask spots
+    patterns[0] = clamp(A, HORZ_SOFT, 1.0);
+    patterns[1] = 1.0;
+    patterns[2] = clamp(B, HORZ_SOFT, 1.0);
+    triads *= patterns[int(mod(gl_FragCoord.y, 3.0))];
 
-    float powa = 1.0 - clamp(luma, 0.0, 0.8);
-    float fu = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), MASK_CUTOFF, 1.0), powa);
-    float astigmatism = dot(vec3(-1.0, 1.0, 1.0) * triads, rgb);
-    xy.y += (1.1 + 0.1*astigmatism)/screen_texture_sz.y * MASK_SCALE;
-    float fv = pow(clamp(sin(xy.x * HFREQ + MASK_PHASE) * sin(xy.y * MVFREQ + MASK_PHASE), MASK_CUTOFF, 1.0), powa);
-    float maskvalue = clamp(fu + fv, MASK_CUTOFF, 1.0);
-
-    return maskvalue * triads;
+    return triads;
 }
 
 vec3 testtriplets() {
@@ -171,7 +163,11 @@ void main(void) {
     vec3 mask = scan * mask(xy, luma, rgb);
     rgb = rgb * mask;
     gl_FragColor = vec4(rgb, 1.0);
-    vec3 gammaBoost = vec3(1.0/1.55, 1.0/1.35, 1.0/1.55);
+
+    // for period = 3, blue is in the shade
+    vec3 gammaBoost = vec3(1.0/1.5, 1.0/1.5, 1.0/3);
+
+    //vec3 gammaBoost = vec3(1.0/1.55, 1.0/1.35, 1.0/0.55);
     //vec3 gammaBoost = vec3(1.0/1.95, 1.0/1.55, 1.0/1.65);
     gammaBoost *= 1.3;
     gl_FragColor.rgb = pow(gl_FragColor.rgb, gammaBoost);
