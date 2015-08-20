@@ -117,7 +117,27 @@ vec3 mask(vec2 xy, float luma, vec3 rgb) {
     patterns[0] = clamp(A, HORZ_SOFT, 1.0);
     patterns[1] = 1.0;
     patterns[2] = clamp(B, HORZ_SOFT, 1.0);
-    triads *= patterns[int(mod(gl_FragCoord.y, 3.0))];
+
+    float pat = patterns[int(mod(gl_FragCoord.y, 3.0))];
+
+#define SCANPHASE 0
+#define PHAT_SCAN
+#ifdef PHAT_SCAN
+    if (int(mod(gl_FragCoord.y + SCANPHASE, 6.0)) < 3) {
+        pat *= 0.8;
+    } else {
+        pat = clamp(pat, 0.0, 1.0);
+    }
+#endif
+#ifdef BOB
+    if (int(mod(gl_FragCoord.y + SCANPHASE, 4)) < 3) {
+        pat *= 0.6;
+    } else {
+        pat = clamp(pat, 0.0, 1.0);
+    }
+#endif
+
+    triads *= pat;
 
     return triads;
 }
@@ -126,7 +146,6 @@ vec3 testtriplets() {
     int fragx = int(gl_FragCoord.x);
     return triplets[int(mod(fragx, 3))];    
 }
-
 
 void main(void) {
     vec2 xy = gl_TexCoord[0].st;
