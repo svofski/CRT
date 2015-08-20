@@ -164,12 +164,7 @@ void main(void) {
     rgb = rgb * mask;
     gl_FragColor = vec4(rgb, 1.0);
 
-    // for period = 3, blue is in the shade
-    vec3 gammaBoost = vec3(1.0/1.5, 1.0/1.5, 1.0/3);
-
-    //vec3 gammaBoost = vec3(1.0/1.55, 1.0/1.35, 1.0/0.55);
-    //vec3 gammaBoost = vec3(1.0/1.95, 1.0/1.55, 1.0/1.65);
-    gammaBoost *= 1.3;
+    vec3 gammaBoost = vec3(1.0/1.5, 1.0/1.35, 1.0/1.5);
     gl_FragColor.rgb = pow(gl_FragColor.rgb, gammaBoost);
 }
 
