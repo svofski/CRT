@@ -63,7 +63,7 @@ vec2 modem_uv(vec2 xy, int ofs) {
     return vec2(signal * sinwt, signal * coswt);
 }
 
-//#define COMPOSITE
+#define COMPOSITE
 
 // Scanline divider depends on how the screen is scanned in the machine
 // Machines that simply display 2 equal fields, like Atari 8-bit
@@ -72,17 +72,22 @@ vec2 modem_uv(vec2 xy, int ofs) {
 // Unfortunately, this has no chance of looking decent on medium
 // resolution LCD with less than 1000 lines to display.
 // Decent looking fake effect can be achieved by using non-integer values.
-#define DIV_ATARI 1.3
-#define DIV_MSX 2.0
+#define DIV_ATARI 2.0
+#define DIV_MSX 4.0
 #define SCANLINE_DIV DIV_ATARI
 #define VFREQ PI*(color_texture_sz.y)/SCANLINE_DIV
 // scanline offset relative to pixel boundary
 #define VPHASEDEG 0 
 #define VPHASE (VPHASEDEG)*PI/(180.0*VFREQ)
 // difference between scanline max and min intensities
-#define PROMINENCE 0.9
+#define PROMINENCE 0.5
 // 1.0 makes lines with maximal luma fuse together
 #define FLATNESS 2
+
+#define HORZ_SOFT 0.2
+#define VERT_SOFT 0.2 
+
+#define MASK_SCALE 1.0
 
 float scanline(float y, float luma) {
     // scanlines
@@ -104,13 +109,14 @@ const vec3 triplets[3] = vec3[3] (
 
 const float hsofties[3] = float[3] (1.0, 0.0, 1.0);
 
-#define HORZ_SOFT 0.2
-#define VERT_SOFT 0.2 
-
 vec3 mask(vec2 xy, float luma, vec3 rgb) {
+    vec2 scaled = gl_FragCoord.xy/MASK_SCALE;
     // calculate rgb stripes
-    int xmod = int(mod(int(gl_FragCoord.x), 3));
+    int xmod = int(mod(scaled.x, 3));
     vec3 triads = triplets[xmod];
+
+    // mix in green to make vertical stripes created
+    // by distance beween real LCD subpixels less prominent
     float soft = hsofties[xmod];
     triads.g += VERT_SOFT * soft * (triads.r + triads.b);
 
@@ -119,7 +125,7 @@ vec3 mask(vec2 xy, float luma, vec3 rgb) {
     // x x x B G R -- pattern B: y mod 3 == 2
 
     // pattern A: 1 1 1 0 0 0
-    float A = step(0.5, mod(gl_FragCoord.x, 6.0) / 6.0);
+    float A = step(0.5, mod(scaled.x, 6.0) / 6.0);
     // pattern B: 0 0 0 1 1 1
     float B = 1.0 - A;
 
@@ -129,16 +135,14 @@ vec3 mask(vec2 xy, float luma, vec3 rgb) {
     patterns[1] = 1.0;
     patterns[2] = clamp(B, HORZ_SOFT, 1.0);
 
-    float pat = patterns[int(mod(gl_FragCoord.y, 3.0))];
+    float pat = patterns[int(mod(scaled.y, 3.0))];
+    //pat = 1.0;
 
 #define SCANPHASE 0
-#define PHAT_SCAN
+#define PHAT_SCAN_
 #ifdef PHAT_SCAN
-    if (int(mod(gl_FragCoord.y + SCANPHASE, 6.0)) < 3) {
-        pat *= 0.8;
-    } else {
-        pat = clamp(pat, 0.0, 1.0);
-    }
+    float rem = mod(scaled.y + SCANPHASE, 6.0*SCANLINE_DIV);
+    pat = pat * (1.0-PROMINENCE)+PROMINENCE*pow(abs(sin(rem/(6.0*SCANLINE_DIV) * PI)), 1);
 #else
     pat = min(scanline(xy.y, luma), pat);
 #endif
