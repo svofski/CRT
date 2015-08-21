@@ -95,6 +95,7 @@ const CmdLoadImage      CommandCode = 33
 const CmdImageLoaded    CommandCode = 34
 const CmdToggleLayer    CommandCode = 35
 const CmdToggleMSAA     CommandCode = 36
+const CmdNextSize       CommandCode = 37
 
 type ShaderTargetPair struct {
     Shader *gfx.Shader
@@ -132,6 +133,8 @@ func handleEvents(events chan window.Event, commands chan Command) {
                         commands <- Command{Code: CmdLoadImage}
                     case keyboard.A:
                         commands <- Command{Code: CmdToggleMSAA}
+                    case keyboard.S:
+                        commands <- Command{Code: CmdNextSize}
                 }
             }
         }

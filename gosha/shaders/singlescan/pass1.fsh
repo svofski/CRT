@@ -63,15 +63,26 @@ vec2 modem_uv(vec2 xy, int ofs) {
     return vec2(signal * sinwt, signal * coswt);
 }
 
-#define COMPOSITE
-// Hard triads are hard bound to pixels, they correspond to MASK_SCALE 6
-//#define HARD_TRIADS
+//#define COMPOSITE
 
-#define VFREQ PI*(color_texture_sz.y)/1.0 // correct scanlines = 1
-#define VPHASEDEG 0 // 0 for gosha, 90 for MESS
+// Scanline divider depends on how the screen is scanned in the machine
+// Machines that simply display 2 equal fields, like Atari 8-bit
+// need this value to be 1.0 for correct scanlines, because they have
+// 2 TV lines per horizontal pixel.
+// Unfortunately, this has no chance of looking decent on medium
+// resolution LCD with less than 1000 lines to display.
+// Decent looking fake effect can be achieved by using non-integer values.
+#define DIV_ATARI 1.3
+#define DIV_MSX 2.0
+#define SCANLINE_DIV DIV_ATARI
+#define VFREQ PI*(color_texture_sz.y)/SCANLINE_DIV
+// scanline offset relative to pixel boundary
+#define VPHASEDEG 0 
 #define VPHASE (VPHASEDEG)*PI/(180.0*VFREQ)
-#define PROMINENCE 0
-#define FLATNESS 0.6
+// difference between scanline max and min intensities
+#define PROMINENCE 0.9
+// 1.0 makes lines with maximal luma fuse together
+#define FLATNESS 2
 
 float scanline(float y, float luma) {
     // scanlines
@@ -128,13 +139,8 @@ vec3 mask(vec2 xy, float luma, vec3 rgb) {
     } else {
         pat = clamp(pat, 0.0, 1.0);
     }
-#endif
-#ifdef BOB
-    if (int(mod(gl_FragCoord.y + SCANPHASE, 4)) < 3) {
-        pat *= 0.6;
-    } else {
-        pat = clamp(pat, 0.0, 1.0);
-    }
+#else
+    pat = min(scanline(xy.y, luma), pat);
 #endif
 
     triads *= pat;
@@ -178,7 +184,7 @@ void main(void) {
 #endif    
 
     // scanlines
-    float scan = scanline(xy.y, luma);
+    float scan = 1.0;//scanline(xy.y, luma);
     vec3 mask = scan * mask(xy, luma, rgb);
     rgb = rgb * mask;
     gl_FragColor = vec4(rgb, 1.0);
