@@ -52,6 +52,12 @@ func createShaders(manager ShaderManager, size image.Point, screensize image.Poi
     return shaders
 }
 
+func updateRunningUniforms(shadoks []*gfx.Shader, time float32) {
+    for _, shadok := range shadoks {
+        shadok.Inputs["time"] = time;
+    }
+}
+
 func updateWindowTitle(w window.Window, descr *ShaderDescriptor, enable []bool, rect image.Rectangle) {
     props := w.Props()
 
@@ -308,6 +314,9 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     for running {
         lock.Lock()
         if len(couples) > 0 {
+            // time etc
+            time := float32(float64(clock.Time().Nanoseconds())/1.0e9)
+            updateRunningUniforms(shaders, time)
             // clear fbo textures
             for _, canvas := range rttCanvas {
                 canvas.Clear(zerorect, gfx.Color{0, 0, 0, 0})
