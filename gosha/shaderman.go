@@ -23,11 +23,11 @@ type ShaderDescriptor struct {
 
 type ShaderManager interface {
 	Current() *ShaderDescriptor;
-	LoadNext() 
+	LoadNext()
 }
 
 type shaderStore struct {
-	current int 
+	current int
 	shaders []*ShaderDescriptor
 	dirmap map[string]*ShaderDescriptor
 	watcher *fsnotify.Watcher
@@ -50,7 +50,7 @@ func (store *shaderStore) init() {
 		for event := range store.watcher.Event {
 			dir := filepath.Dir(event.Name)
 			descr, _ := store.dirmap[dir]
-			//fmt.Println("fsnotify event: ", event, dir, descr)
+			fmt.Println("fsnotify event: ", event, dir)//, descr)
 			if descr != nil {
 				store.loadShader(descr, nil)
 				store.commands <- Command{Code: CmdLoadShader}
@@ -72,7 +72,7 @@ func (store *shaderStore) init() {
 				file := filepath.Join(where, "defaults")
 				f, _ := os.Open(file)
 				if f != nil {
-					for scanner := bufio.NewScanner(bufio.NewReader(f)); scanner.Scan(); {						
+					for scanner := bufio.NewScanner(bufio.NewReader(f)); scanner.Scan(); {
 						s := scanner.Text()
 						split := strings.Split(s, "=")
 						if len(split) != 2 {
@@ -136,7 +136,8 @@ func (store *shaderStore) loadShader(shader *ShaderDescriptor, watcher *fsnotify
 		if text != nil {
 			shader.FragSrc = append(shader.FragSrc, string(text))
 			if watcher != nil {
-				watcher.Watch(file)
+				//watcher.Watch(file)
+				watcher.WatchFlags(file, fsnotify.FSN_MODIFY)
 			}
 		} else {
 			break

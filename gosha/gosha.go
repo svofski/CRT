@@ -30,20 +30,20 @@ void main()
 }
 `)
 
+var PointZero image.Point = image.Point {0, 0}
+
 func createShaders(manager ShaderManager, size image.Point, screensize image.Point) []*gfx.Shader {
     shaders := make([]*gfx.Shader, len(manager.Current().FragSrc))
     for i, fragSource := range manager.Current().FragSrc {
         shaders[i] = gfx.NewShader(fmt.Sprintf("%s-pass%d", manager.Current().Name, i+1))
         shaders[i].GLSLVert = glslVert
         shaders[i].GLSLFrag = []byte(fragSource)
-        shaders[i].Inputs["color_texture_sz"] = gfx.Vec3{float32(size.X), float32(size.Y), 0.0}
-        shaders[i].Inputs["screen_texture_sz"] = gfx.Vec3{float32(screensize.X), float32(screensize.Y), 0.0}
-        fmt.Println("screen texture sz", shaders[i].Inputs["screen_texture_sz"])
         for uniform,value := range *manager.Current().Defaults {
             shaders[i].Inputs[uniform] = value
-        }        
-    }    
-    fmt.Println("Created shaderset ", func() (res []string) { 
+        }
+    }
+		updateRunningUniforms(shaders, -1, size, screensize)
+    fmt.Println("Created shaderset ", func() (res []string) {
             for _,s := range shaders {
                 res = append(res, s.Name)
             }
@@ -52,9 +52,17 @@ func createShaders(manager ShaderManager, size image.Point, screensize image.Poi
     return shaders
 }
 
-func updateRunningUniforms(shadoks []*gfx.Shader, time float32) {
+func updateRunningUniforms(shadoks []*gfx.Shader, time float32, size image.Point, screensize image.Point) {
     for _, shadok := range shadoks {
-        shadok.Inputs["time"] = time;
+				if time > -1 {
+        	shadok.Inputs["time"] = time
+				}
+				if !size.Eq(PointZero) {
+					shadok.Inputs["color_texture_sz"] = gfx.Vec3{float32(size.X), float32(size.Y), 0.0}
+				}
+				if !screensize.Eq(PointZero) {
+        	shadok.Inputs["screen_texture_sz"] = gfx.Vec3{float32(screensize.X), float32(screensize.Y), 0.0}
+				}
     }
 }
 
@@ -155,8 +163,8 @@ func handleEvents(events chan window.Event, commands chan Command) {
        *--*
     (0,1) (1,1)
 start here
-*/    
-func createCard() (card *gfx.Object) {    
+*/
+func createCard() (card *gfx.Object) {
     cardMesh := gfx.NewMesh()
     cardMesh.Vertices = []gfx.Vec3 {
         // Bottom-left triangle.
@@ -232,14 +240,13 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     var sourceTexture *gfx.Texture
     var rttTexture []*gfx.Texture
     var rttCanvas []gfx.Canvas
-    
+
     screenCamera := gfx.NewCamera()
     screenCamera.SetPos(lmath.Vec3{0, -2, 0})
     card := createCard()
 
     enable := make([]bool, 10)
     for i, _ := range enable { enable[i] = true }
-
 
     lock := sync.RWMutex{}
     couples := []ShaderTargetPair{}
@@ -263,12 +270,14 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 lock.Unlock()
                 basesize := img.Bounds().Max // 1920
                 //basesize := image.Point{img.Bounds().Max.X,int(float32(img.Bounds().Max.X)*0.75)}
-                if !updateWindowSize(w, basesize) {
-                    // resize will create mpass buffers, then request shader load
-                    commands <- Command{Code: CmdResize}     
-                }
-            case CmdResize:
+								updateWindowSize(w, basesize)
+								commands <- Command{Code: CmdResize}
                 commands <- Command{Code: CmdLoadShader}
+            case CmdResize:
+                //commands <- Command{Code: CmdLoadShader}
+								lock.Lock()
+								updateRunningUniforms(shaders, -1, img.Bounds().Max, r.Bounds().Max)
+								lock.Unlock()
             case CmdNextShader:
                 shaderManager.LoadNext()
                 commands <- Command{Code: CmdLoadShader}
@@ -316,14 +325,14 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
         if len(couples) > 0 {
             // time etc
             time := float32(float64(clock.Time().Nanoseconds())/1.0e9)
-            updateRunningUniforms(shaders, time)
+            updateRunningUniforms(shaders, time, PointZero, PointZero)
             // clear fbo textures
             for _, canvas := range rttCanvas {
                 canvas.Clear(zerorect, gfx.Color{0, 0, 0, 0})
                 canvas.ClearDepth(zerorect, 1.0)
                 canvas.Render() // make sure that the state is finalized
             }
-            for _, couple := range couples {                
+            for _, couple := range couples {
                 if couple.Canvas == r {
                     // clear main context too
                     couple.Canvas.Clear(zerorect, gfx.Color{0, 0, 1, 1})
@@ -338,7 +347,6 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
                 ratio := float64(b.Dx()) / float64(b.Dy());
                 card.SetScale(lmath.Vec3{s * ratio, 1.0, s})
                 card.SetPos(lmath.Vec3{0, 0, 0})
-
                 card.Shader = couple.Shader
                 // Texture0 is source, Texture1 is mpass source
                 card.Textures = []*gfx.Texture{sourceTexture, couple.MpassTex}
@@ -353,7 +361,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
 
         clock.Tick()
         runtime.Gosched()
-    }    
+    }
     w.Close()
 }
 
