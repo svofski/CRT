@@ -45,6 +45,19 @@ float sdTorus(vec3 p, vec2 t)
   return length(q)-t.y;
 }
 
+float sdCappedCylinderY(vec3 p, vec2 radius_height)
+{
+	vec2 d = abs(vec2(length(p.xz), p.y)) - radius_height;
+	return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+
+float sdCappedCylinderZ(vec3 p, vec2 radius_height)
+{
+	vec2 d = abs(vec2(length(p.xy), p.z)) - radius_height;
+	return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+
+
 mat4 mRot(float x, float y, float z, vec4 translation) {
 	float cosx = cos(x);
 	float sinx = sin(x);
@@ -135,30 +148,88 @@ vec2 map(vec3 q) {
 }
 */
 
+float cylinder(vec3 q, vec2 radius_height, vec3 offset) {
+	vec3 xformedq = q + offset;
+	return sdCappedCylinderZ(xformedq, radius_height);
+}
+
 float rotbox_z(vec3 q, vec3 dimension, float angle, vec3 offset) {
 	mat4 xform = mRot(0.0, 0.0, angle, vec4(offset, 1.0));
 	vec3 xformedq = (xform * vec4(q, 1.0)).xyz;
 	return udBox(xformedq, dimension);
 }
 
+float ofsbox(vec3 q, vec3 dimension, vec3 offset) {
+	vec3 xformedq = q + offset;
+	return udBox(xformedq, dimension);
+}
+
+vec2 floppy_door(vec3 q, float material) {
+	q -= vec3(1.2/2.0 + 1.2/2.0 * sin(time), 0.0, 0.0);
+	vec2 door_metal = vec2(ofsbox(q, vec3(4.08/2, 3.05/2, .15), vec3(0.34, -3.05, 0.0)), material);
+	vec2 door_die = vec2(ofsbox(q, vec3(1.1/2.0, 2.5/2.0, .16), vec3((9.0-1.1)/2 - 2.8, -(9.0-2.5-0.5)/2, 0)), material);
+	return Difference(door_metal, door_die);	
+}
+
 vec2 map(vec3 q) {
 		float scale = 3.0;
+		const float mat_purple = 1.0;
+		const float mat_cyan = 2.0;
+		const float mat_red = 3.0;
 
-		vec2 box = vec2(udBox(q, vec3(3.0, 3.0, .06)), 1.0);
-		vec2 wedge_cut = vec2(rotbox_z(q, vec3(1.0, 1.0, .08), radians(45), vec3(4.9, 0.0, 0.0)), 1.0);
-		vec2 door_cut_front = vec2(rotbox_z(q, vec3(1.8, 1.2, .08), 0.0, vec3(-0.6, -1.9, 0.23)), 1.0);
-		vec2 door_cut_rear  = vec2(rotbox_z(q, vec3(1.8, 1.2, .08), 0.0, vec3(-0.6, -1.9, -0.23)), 1.0);
+		// case
+		vec2 box = vec2(udBox(q, vec3(4.5, 4.5, .15)), mat_purple);
+		vec2 wedge_cut = vec2(rotbox_z(q, vec3(6.5, 6.5, .15), radians(45), vec3(-0.55, 0.0, 0.0)), mat_purple);
+		box = Intersect(box, wedge_cut);
+		
+		vec2 door_cut_front = vec2(ofsbox(q, vec3(3.05, 3.05/2, .06), vec3(-0.6, -3.05, 0.3)), mat_purple);
+		vec2 door_cut_rear  = vec2(ofsbox(q, vec3(3.05, 3.05/2, .06), vec3(-0.6, -3.05, -0.3)), mat_purple);
 
-		vec2 sticker_cut_front = vec2(rotbox_z(q, vec3(2.4, 1.6, .08), 0.0, vec3(0.0, 1.45, 0.23)), 1.0);
+		vec2 sticker_cut_front = vec2(ofsbox(q, vec3(3.65, 5.5/2.0, .06), vec3(0.0, (9.0-5.5)/2, 0.3)), mat_purple);
+		vec2 sticker_cut_rear = vec2(ofsbox(q, vec3(3.65, 1.8/2.0, .06), vec3(0.0, (9.0-1.8)/2, -0.3)), mat_purple);
+		vec2 sticker_cut = Union(sticker_cut_front, sticker_cut_rear);
 
-		vec2 cut = Union(Union(Union(door_cut_front, door_cut_rear), wedge_cut), sticker_cut_front);
+		vec2 access_die = vec2(ofsbox(q, vec3(1.0/2.0, 2.5/2.0, .16), vec3(0.0, -(9.0-2.5-0.5)/2, 0)), mat_purple);
+		vec2 motor_die = vec2(cylinder(q, vec2(2.7/2.0, .25), vec3(0.0, 0.0, -0.09)), mat_purple);
 
-		vec2 door_outer = vec2(rotbox_z(q, vec3(1.35, 1.18, .08), 0.0, vec3(-0.16, -1.83, 0.0)), 3.0);
-		vec2 door_cutout = vec2(rotbox_z(q, vec3(0.35, 1.0, .1), 0.0, vec3(0.35, -1.78, 0.0)), 3.0);
-		vec2 door = Difference(door_outer, door_cutout);
+		vec2 sidecut_left = vec2(cylinder(q, vec2(0.45/2.0, .25), vec3(4.5, -(4.5-1.0), -0.09)), mat_purple);
+		vec2 sidecut_right = vec2(cylinder(q, vec2(0.45/2.0, .25), vec3(-4.5, -(4.5-1.0), -0.09)), mat_purple);
+		vec2 oval_left = vec2(cylinder(q, vec2(0.4/2.0, .25), vec3(4.5-0.4, -(4.5-1.7), -0.09)), mat_purple);
+		vec2 oval_right = vec2(cylinder(q, vec2(0.4/2.0, .25), vec3(-(4.5-0.4), -(4.5-1.7), -0.09)), mat_purple);
+		
+		// write-protect hole:
+		// full-size rectangle
+		vec2 wprot_hole = vec2(ofsbox(q, vec3(0.4/2.0, 0.8/2.0, .15), vec3(-(4.5-0.4), 4.5-0.6, -0.05)), mat_purple);
+		// the through hole
+		wprot_hole = Union(wprot_hole, 
+				vec2(ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .25), vec3(-(4.5-0.4), 4.5-0.8, 0.0)), mat_purple));
 
-		//return Union(box, wedge_cut);
-		return Union(Difference(box, cut), door);
+		float wprot_tab_ofs = 0.2 + 0.2*sin(time);
+		vec2 wprot_tab = vec2(ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .15/2), vec3(-(4.5-0.4), 4.5-0.4-wprot_tab_ofs, -0.15/2)), mat_red);
+
+		vec2 small_cuts = Union(Union(Union(sidecut_left, sidecut_right), oval_left), oval_right);
+		small_cuts = Union(small_cuts, wprot_hole);
+
+		vec2 cutout = Union(Union(Union(Union(door_cut_front, door_cut_rear), sticker_cut), access_die), motor_die);
+		cutout = Union(cutout, small_cuts);
+		vec2 floppy_case = Difference(box, cutout);
+
+		// door
+		vec2 door = floppy_door(q, mat_cyan);
+
+		// the disk 
+		vec2 motor_grip_main = vec2(cylinder(q, vec2(2.6/2.0, .13), vec3(0.0, 0.0, -0.1)), mat_cyan);
+		vec2 surface = vec2(cylinder(q, vec2((8.9-0.1)/2.0, .01), vec3(0.0, 0.0, 0.0)), mat_red);
+		motor_grip_main = Union(motor_grip_main, surface);
+
+		vec2 motor_grip_inner = vec2(cylinder(q, vec2(2.5/2.0, .13), vec3(0.0, 0.0, -0.05)), mat_cyan);
+		vec2 motor_grip_axis = vec2(ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .25), vec3(0.0)), mat_cyan);
+		vec2 motor_side = vec2(rotbox_z(q, vec3(0.4/2.0, 0.8/2.0, .25), radians(20), vec3(0.8, 0.0, 0.0)), mat_cyan);
+		vec2 motor_grip_cut = Union(motor_grip_axis, motor_grip_inner);
+		motor_grip_cut = Union(motor_grip_cut, motor_side);
+		vec2 disk = Difference(motor_grip_main, motor_grip_cut);
+
+		return Union(Union(Union(floppy_case, door), disk), wprot_tab);
 }
 
 
@@ -169,7 +240,7 @@ vec2 march(in vec3 origin, in vec3 r) {
 	const float precizion = 0.0001;
 	float t = 0.0;
 	float m = -1.0;
-	for (int i = 0; i < 100; i++) {
+	for (int i = 0; i < 60; i++) {
 		vec2 res = map(origin + r * t);
 		if (res.x < precizion || res.x > tmax) {
 			break;
@@ -217,8 +288,8 @@ vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
 				float dl = max(length(lightPos - pos) - rl, 0.0);
 				float denom = dl/rl + 1.0;
 				float attenuation = 1.0 / (denom*denom);
-				float ambient = 0.05;
-				color = vec3((b*color+pow(b, 36.0)) * (1.0 - f * 0.01) * attenuation * b + ambient);
+				float ambient = 0.09;
+				color = vec3((b*color+pow(b, 40.0)) * (1.0 - f * 0.01) * attenuation * b + ambient);
 		}
 
 		return color;
@@ -251,7 +322,7 @@ void main(void) {
 		//origin -= vec3(0.5, 0.5, 0.0);
 
 		// camera
-		vec3 origin = vec3(-1 + 3.2 * cos(0.5*time), 10.0, -10 + 3.2 * sin(0.5*time));
+		vec3 origin = vec3(2 + 4.2 * cos(0.8*time), 0 + 10.0 * sin(time), 10 + 4.2 * sin(0.8*time));
 		//vec3 target = vec3( -0.5, -0.4, 0.5 );
 		vec3 target = vec3(0.0, 0.0, 0.0);
 
