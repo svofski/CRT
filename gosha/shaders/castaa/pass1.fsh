@@ -104,10 +104,16 @@ vec2 difmin(in vec2 a, in vec2 b) {
 }
 
 // polynomial smooth min (k = 0.1);
+// Mixed material encoded as mat_a * 10 + mat_b * 100, fractional part is mix value
 vec2 smin_poly(in vec2 a, in vec2 b, float k)
 {
     float h = clamp( 0.5+0.5*(b.x - a.x)/k, 0.0, 1.0 );
-    return vec2(mix(b, a, h) - k*h*(1.0-h));
+    //return vec2(mix(b, a, h) - k*h*(1.0-h));
+    float blend = mix(b.x, a.x, h) - k * h * (1.0 - h);
+    int m1 = int(a.y - 1.0) * 10;
+    int m2 = int(b.y - 1.0) * 100;
+    float mat = m1 + m2 + clamp(1.0 - h, 0.0, 0.999);
+    return vec2(blend, mat);
 }
 
 vec2 Difference(in vec2 d1, in vec2 d2) {
@@ -356,8 +362,18 @@ vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
     //vec3 color = vec3(-m/50.0);
     vec3 color = vec3(0.0, 0.0, 0.0);
     if (m > -0.5) {
-        int material = int(m-1.0);
-        color = mix(colormap[material], colormap[material+1], vec3(m - 1.0 - material));
+    	if (m > 9.0) {
+    		// m = 290.123123
+    		float ratio = fract(m);
+    		m = m / 10;
+    		int index1 = int(mod(m, 10));
+    		m = m / 10;
+    		int index2 = int(m);//int(mod(m, 10));
+    		color = mix(colormap[index1], colormap[index2], vec3(ratio));
+    	} else {
+	        int material = int(m-1.0);
+	        color = mix(colormap[material], colormap[material+1], vec3(m - 1.0 - material));
+    	}
         vec3 pos = origin + t * ray;
         vec3 normal = calcNormal(pos);
         vec3 reflection = reflect(ray, normal);
