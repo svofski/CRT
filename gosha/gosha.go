@@ -15,29 +15,15 @@ import (
     "azul3d.org/clock.v1"
 )
 
-var glslVert = []byte(`
-#version 120
-
-attribute vec3 Vertex;
-attribute vec2 TexCoord0;
-
-uniform mat4 MVP;
-
-void main()
-{
-        gl_TexCoord[0].st = vec2(TexCoord0.x, 1.0 - TexCoord0.y); // flip back azul3d vertical flippance
-        gl_Position = MVP * vec4(Vertex, 1.0);
-}
-`)
 
 var PointZero image.Point = image.Point {0, 0}
 
 func createShaders(manager ShaderManager, size image.Point, screensize image.Point) []*gfx.Shader {
     shaders := make([]*gfx.Shader, len(manager.Current().FragSrc))
-    for i, fragSource := range manager.Current().FragSrc {
+    for i, _ := range manager.Current().FragSrc {
         shaders[i] = gfx.NewShader(fmt.Sprintf("%s-pass%d", manager.Current().Name, i+1))
-        shaders[i].GLSLVert = glslVert
-        shaders[i].GLSLFrag = []byte(fragSource)
+        shaders[i].GLSLVert = []byte(manager.Current().VertSrc[i])
+        shaders[i].GLSLFrag = []byte(manager.Current().FragSrc[i])
         for uniform,value := range *manager.Current().Defaults {
             shaders[i].Inputs[uniform] = value
         }

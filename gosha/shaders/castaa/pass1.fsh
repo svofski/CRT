@@ -1,5 +1,7 @@
 #version 120
 
+#define DYNAMIC_MATRICES
+
 uniform sampler2D Texture0;
 #define color_texture Texture0
 #define TEXCOORD gl_TexCoord[0].st
@@ -10,6 +12,14 @@ uniform vec3 screen_texture_sz;
 uniform float filter_gain;
 uniform float filter_invgain;
 uniform float time;
+
+#ifdef DYNAMIC_MATRICES
+#else
+varying mat3 xform_Torus;
+varying mat4 xform_WedgeCut;
+varying mat4 xform_MotorSideCut;
+varying mat3 xform_DiskSpin;
+#endif
 
 #define PI          3.14159265358
 
@@ -73,15 +83,16 @@ mat4 mRot(float x, float y, float z, vec4 translation) {
         );
 }
 
-float TorusTx(vec3 p, mat4 invm, vec2 t) {
-    vec4 q = invm * vec4(p, 1.0);
+float TorusTx(vec3 p, mat3 invm, vec2 t) {
+    vec3 q = invm * p;
     return sdTorus(q.xyz, t);
 }
 
 float NiceTorus(vec3 p, vec2 radii) {
-    mat4 m = mRot(radians(time*100), 0.0, radians(45.0), vec4(0.0, 0.0, 0.0, 1.0));
-    //mat4 m = mRot(0.0, 0.0, 0.0, vec4(0.0, 0.0, 0.0, 1.0));
-    return TorusTx(p, m, radii);
+#ifdef DYNAMIC_MATRICES
+    mat4 xform_Torus = mRot(radians(time*100 + gl_FragCoord.y), 0.0, radians(45.0), vec4(0.0, 0.0, 0.0, 1.0));
+#endif
+    return TorusTx(p, mat3(xform_Torus), radii);
 }
 
 vec2 difmax(in vec2 a, in vec2 b) {
@@ -99,19 +110,6 @@ vec2 smin_poly(in vec2 a, in vec2 b, float k)
         return vec2(mix(b, a, h) - k*h*(1.0-h));
 }
 
-
-// exponential smooth min (k = 32);
-vec2 smin_exp(in vec2 a, in vec2 b, float k)
-{
-    float res = exp(-k*a.x) + exp(-k*b.x);
-    vec2 r = vec2(-log(res)/k, 0.0);
-
-        float kp = 1.0 - k / 20.0;
-        float h = clamp(0.5+0.5*(b.x - a.x)/kp, 0.0, 1.0);
-        r.y = mix(b.y, a.y, h) - kp * h * (1.0 - h);
-        return r;
-}
-
 vec2 Difference(in vec2 d1, in vec2 d2) {
         vec2 d2m = vec2(-d2.x, d2.y);
       return difmax(d1, d2m);
@@ -126,7 +124,7 @@ vec2 Union(vec2 d1, vec2 d2) {
 }
 
 vec2 Blend(vec2 d1, vec2 d2) {
-    return smin_poly(d1, d2, 0.2 + 0.2 * sin(time/2.0));
+    return smin_poly(d1, d2, 1.0);//0.2 + 0.2 * sin(time/2.0));
         //return smin_exp(d1, d2, 9.0);
 }
 
@@ -148,40 +146,53 @@ vec2 map(vec3 q) {
 }
 */
 
-float cylinder(vec3 q, vec2 radius_height, vec3 offset) {
+float cylinder(in vec3 q, in vec2 radius_height, in vec3 offset) {
     vec3 xformedq = q + offset;
     return sdCappedCylinderZ(xformedq, radius_height);
 }
 
-float rotbox_z(vec3 q, vec3 dimension, float angle, vec3 offset) {
+#ifdef DYNAMIC_MATRICES
+float rotbox_z(in vec3 q, in vec3 dimension, in float angle, in vec3 offset) {
     mat4 xform = mRot(0.0, 0.0, angle, vec4(offset, 1.0));
     vec3 xformedq = (xform * vec4(q, 1.0)).xyz;
     return udBox(xformedq, dimension);
 }
+#else
+float box_matrix(in vec3 q, in vec3 dimension, in mat4 xform) {
+    vec3 xformedq = (xform * vec4(q, 1.0)).xyz;
+    return udBox(xformedq, dimension);
+}
+#endif
 
-float ofsbox(vec3 q, vec3 dimension, vec3 offset) {
+float ofsbox(in vec3 q, in vec3 dimension, in vec3 offset) {
     vec3 xformedq = q + offset;
     return udBox(xformedq, dimension);
 }
 
-vec2 floppy_door(vec3 q, float material) {
+vec2 floppy_door(in vec3 q, in float material) {
     q -= vec3(1.2/2.0 + 1.2/2.0 * sin(time), 0.0, 0.0);
     vec2 door_metal = vec2(ofsbox(q, vec3(4.08/2, 3.05/2, .155), vec3(0.34, -3.05, 0.0)), material);
     vec2 door_die = vec2(ofsbox(q, vec3(1.1/2.0, 2.5/2.0, .20), vec3((9.0-1.1)/2 - 2.8, -(9.0-2.5-0.5)/2, 0.0)), material);
-    return Difference(door_metal, door_die);    
+    return Difference(door_metal, door_die);
 }
 
-vec2 disk(vec3 q, float mat_metal, float mat_film) {
-    mat4 xform = mRot(0.0, 0.0, time * 7.1, vec4(0.0));
-    q = (xform * vec4(q, 1.0)).xyz;
-
+vec2 disk(in vec3 q, in float mat_metal, in float mat_film) {
+#ifdef DYNAMIC_MATRICES
+    q = (mRot(0.0, 0.0, time * 0.71, vec4(0.0)) * vec4(q, 1.0)).xyz;
+#else
+    q = xform_DiskSpin * q;
+#endif
     vec2 motor_grip_main = vec2(cylinder(q, vec2(2.6/2.0, .13), vec3(0.0, 0.0, -0.1)), mat_metal);
     vec2 surface = vec2(cylinder(q, vec2((8.9-0.1)/2.0, .01), vec3(0.0, 0.0, 0.0)), mat_film);
     motor_grip_main = Union(motor_grip_main, surface);
 
     vec2 motor_grip_inner = vec2(cylinder(q, vec2(2.5/2.0, .13), vec3(0.0, 0.0, -0.05)), mat_metal);
     vec2 motor_grip_axis = vec2(ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .25), vec3(0.0)), mat_metal);
+#ifdef DYNAMIC_MATRICES
     vec2 motor_side = vec2(rotbox_z(q, vec3(0.4/2.0, 0.8/2.0, .25), radians(20.0), vec3(0.8, 0.0, 0.0)), mat_metal);
+#else
+    vec2 motor_side = vec2(box_matrix(q, vec3(0.4/2.0, 0.8/2.0, .25), xform_MotorSideCut), mat_metal);
+#endif
     vec2 motor_grip_cut = Union(motor_grip_axis, motor_grip_inner);
     motor_grip_cut = Union(motor_grip_cut, motor_side);
     vec2 disk = Difference(motor_grip_main, motor_grip_cut);
@@ -190,16 +201,20 @@ vec2 disk(vec3 q, float mat_metal, float mat_film) {
 }
 
 vec2 map(vec3 q) {
-    float scale = 3.0;
+    const float scale = 3.0;
     const float mat_purple = 1.0;
     const float mat_cyan = 2.0;
     const float mat_red = 3.0;
 
     // case
     vec2 box = vec2(udBox(q, vec3(4.5, 4.5, .15)), mat_purple);
+#ifdef DYNAMIC_MATRICES
     vec2 wedge_cut = vec2(rotbox_z(q, vec3(6.5, 6.5, .15), radians(45.0), vec3(-0.55, 0.0, 0.0)), mat_purple);
+#else
+    vec2 wedge_cut = vec2(box_matrix(q, vec3(6.5, 6.5, .15), xform_WedgeCut), mat_purple);
+#endif
     box = Intersect(box, wedge_cut);
-    
+
     vec2 door_cut_front = vec2(ofsbox(q, vec3(3.05, 3.05/2, .06), vec3(-0.6, -3.05, 0.3)), mat_purple);
     vec2 door_cut_rear  = vec2(ofsbox(q, vec3(3.05, 3.05/2, .06), vec3(-0.6, -3.05, -0.3)), mat_purple);
 
@@ -214,12 +229,12 @@ vec2 map(vec3 q) {
     vec2 sidecut_right = vec2(cylinder(q, vec2(0.45/2.0, .25), vec3(-4.5, -(4.5-1.0), -0.09)), mat_purple);
     vec2 oval_left = vec2(cylinder(q, vec2(0.4/2.0, .25), vec3(4.5-0.4, -(4.5-1.7), -0.09)), mat_purple);
     vec2 oval_right = vec2(cylinder(q, vec2(0.4/2.0, .25), vec3(-(4.5-0.4), -(4.5-1.7), -0.09)), mat_purple);
-    
+
     // write-protect hole:
-    // full-size rectangle
+    // full-size cutout that goes mid-depth
     vec2 wprot_hole = vec2(ofsbox(q, vec3(0.4/2.0, 0.8/2.0, .15), vec3(-(4.5-0.4), 4.5-0.6, -0.05)), mat_purple);
     // the through hole
-    wprot_hole = Union(wprot_hole, 
+    wprot_hole = Union(wprot_hole,
             vec2(ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .25), vec3(-(4.5-0.4), 4.5-0.8, 0.0)), mat_purple));
 
     float wprot_tab_ofs = 0.2 + 0.2*sin(time);
@@ -235,10 +250,15 @@ vec2 map(vec3 q) {
     // door
     vec2 door = floppy_door(q, mat_cyan);
 
-    // the disk 
+    // the disk
     vec2 disk = disk(q, mat_cyan, mat_red);
+    //return floppy_case;
+    vec2 diskette = Union(Union(Union(floppy_case, door), disk), wprot_tab);
+    //return diskette;
 
-    return Union(Union(Union(floppy_case, door), disk), wprot_tab);
+    vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time)) ), 3.0);
+    //return torus;
+    return Blend(diskette, torus);
 }
 
 // x = distance, y = material
@@ -275,8 +295,7 @@ float calcAO( in vec3 pos, in vec3 nor )
 {
     float occ = 0.0;
     float sca = 1.0;
-    for( int i=0; i < 5; i++ )
-    {
+    for(int i=0; i < 5; i++) {
         float hr = 0.01 + 0.12*float(i)/4.0;
         vec3 aopos =  nor * hr + pos;
         float dd = map( aopos ).x;
@@ -286,18 +305,18 @@ float calcAO( in vec3 pos, in vec3 nor )
     return clamp(1.0 - 3.0*occ, 0.0, 1.0);
 }
 
-float softshadow( in vec3 ro, in vec3 rd, in float mint, in float tmax )
+float softshadow(in vec3 ro, in vec3 rd, in float mint, in float tmax)
 {
     float res = 1.0;
     float t = mint;
-    for( int i=0; i<16; i++ )
-    {
-        float h = map( ro + rd*t ).x;
-        res = min( res, 8.0*h/t );
-        t += clamp( h, 0.02, 0.10 );
-        if( h<0.001 || t>tmax ) break;
+    for(int i = 0; i < 13; i++) {
+        float h = map(ro + rd*t).x;
+        res = min(res, 8.0*h/t);
+        t += clamp(h, 0.02, 0.10);
+        if (h < 0.001 || t > tmax)
+          break;
     }
-    return clamp( res, 0.0, 1.0 );
+    return clamp(res, 0.0, 1.0);
 }
 
 
@@ -315,8 +334,10 @@ const vec3[] colormap = vec3[] (
 
 
 vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
-    vec3 color = vec3(0.0, 0.0, 0.0);
+    const float Ka = 0.2;
+    const float Kd = 0.8;
 
+    vec3 color = vec3(0.0, 0.0, 0.0);
     vec2 res = march(origin, ray);
     float t = res.x;
     float m = res.y;
@@ -330,12 +351,10 @@ vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
         float occ = calcAO(pos, normal);
         vec3 light = normalize(lightPos);
 
-        float Ka = 0.2;
-        float Kd = 0.8;
         float ambient = Ka * clamp(0.5 + 0.5 * normal.y, 0.0, 1.0);
         float diffuse = Kd * clamp(dot(normal, light), 0.0, 1.0);
 
-        diffuse *= softshadow(pos, light, 0.02, 2.5);
+        diffuse *= softshadow(pos, light, 0.01, 1.0); // shadows not farther away than 0.5
         float specular = diffuse * pow(clamp(dot(reflection, light), 0.0, 1.0), 36.0);
 
         color = color * ambient * occ + color * diffuse * Kd * occ + specular;
@@ -348,7 +367,7 @@ float fog(float t) {
         return 1.0 / (1.0 + t * t * 0.1);
 }
 
-mat3 setCamera( in vec3 ro, in vec3 ta, float cr ) {
+mat3 setCamera(in vec3 ro, in vec3 ta, float cr) {
         vec3 cw = normalize(ta-ro);
         vec3 cp = vec3(sin(cr), cos(cr),0.0);
         vec3 cu = normalize( cross(cw,cp) );
@@ -373,7 +392,9 @@ void main(void) {
         //origin -= vec3(0.5, 0.5, 0.0);
 
         // camera
-        vec3 origin = vec3(2 + 4.2 * cos(0.8*time), 0 + 10.0 * sin(time), 10 * lookFrom + 4.2 * sin(0.8*time));
+        const vec2 timewobble = vec2(0.25, 0.2);
+        float bobtime = time + timewobble.x*uv.x*sin(time * 0.1) + timewobble.y*uv.y*cos(time * 0.13);
+        vec3 origin = vec3(2 + 4.2 * cos(0.8*bobtime), 0 + 10.0 * sin(bobtime), 10 * lookFrom + 4.2 * sin(0.8*bobtime));
         //vec3 target = vec3( -0.5, -0.4, 0.5 );
         vec3 target = vec3(0.0, 0.0, 0.0);
 

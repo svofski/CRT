@@ -130,17 +130,48 @@ func (store *shaderStore) LoadNext() {
 
 func (store *shaderStore) loadShader(shader *ShaderDescriptor, watcher *fsnotify.Watcher) {
 	shader.FragSrc = make([]string, 0, 9)
+	shader.VertSrc = make([]string, 0, 9)
 	for i := 1; i < 10; i++ {
-		file := filepath.Join(shader.path, fmt.Sprintf("pass%d.fsh", i))
-		text, _ := ioutil.ReadFile(file)
-		if text != nil {
-			shader.FragSrc = append(shader.FragSrc, string(text))
-			if watcher != nil {
-				//watcher.Watch(file)
-				watcher.WatchFlags(file, fsnotify.FSN_MODIFY)
+		{
+			file := filepath.Join(shader.path, fmt.Sprintf("pass%d.fsh", i))
+			text, _ := ioutil.ReadFile(file)
+			if text != nil {
+				shader.FragSrc = append(shader.FragSrc, string(text))
+				if watcher != nil {
+					//watcher.Watch(file)
+					watcher.WatchFlags(file, fsnotify.FSN_MODIFY)
+				}
+			} else {
+				break
 			}
-		} else {
-			break
+		}
+		{
+			file := filepath.Join(shader.path, fmt.Sprintf("pass%d.vsh", i))
+			text, _ := ioutil.ReadFile(file)
+			if text != nil {
+				shader.VertSrc = append(shader.VertSrc, string(text))
+				if watcher != nil {
+					watcher.WatchFlags(file, fsnotify.FSN_MODIFY)
+				}
+			} else {
+				shader.VertSrc = append(shader.VertSrc, string(defaultVertexShader))
+			}
 		}
 	}
 }
+
+
+var defaultVertexShader = []byte(`
+#version 120
+
+attribute vec3 Vertex;
+attribute vec2 TexCoord0;
+
+uniform mat4 MVP;
+
+void main()
+{
+        gl_TexCoord[0].st = vec2(TexCoord0.x, 1.0 - TexCoord0.y); // flip back azul3d vertical flippance
+        gl_Position = MVP * vec4(Vertex, 1.0);
+}
+`)
