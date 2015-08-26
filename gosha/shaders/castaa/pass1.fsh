@@ -276,9 +276,9 @@ vec2 map(vec3 q) {
     vec2 diskette = Union(Union(Union(floppy_case, door), disk), wprot_tab);
     //return diskette;
 
-    vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time)) ), 3.0);
-    //return torus;
-    return Blend(diskette, torus);
+	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time)) ), 3.0);
+//    return torus;
+	return Blend(diskette, torus);
 }
 
 // x = distance, y = material
@@ -351,6 +351,65 @@ const vec3[] colormap = vec3[] (
         vec3(0.9, 0.3, 0.3)
     );
 
+// License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+// The input, n, should have a magnitude in the approximate range [0, 100].
+// The output is pseudo-random, in the range [0,1].
+// xaot88 @ Shadertoy
+float Hash( float n )
+{
+	return fract( (1.0 + cos(n)) * 415.92653);
+}
+
+float Noise2d( in vec2 x )
+{
+    float xhash = Hash( x.x * 37.0 );
+    float yhash = Hash( x.y * 57.0 );
+    return fract( xhash + yhash );
+}
+
+float rand(vec2 co) {
+  return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
+}
+
+float circles(in vec2 uv, in float phase) {
+	float dia = uv.x*uv.x + uv.y*uv.y;
+    float r = abs(mod(dia, 0.1) - fract(time*0.5 + phase)*0.1) < 0.013 ? 1.0 : 0.0;
+    float fangle = (atan(uv.y, uv.x) + PI)/(2*PI);
+    int angle = int(360 * fract(phase + fangle));
+
+    //dia = int(dia * 100)/100.0;
+    r = r * (rand(vec2(angle, dia)) > 0.98 ? 1.0 : 0.0);
+
+    return r;
+}
+
+const float[4] checkers = float[4] (0, 1, 1, 0);
+
+vec3 starfield() {
+	const float time1 = 1.0;
+	const float time2 = 1.43;
+
+    vec2 xy = gl_FragCoord.xy / screen_texture_sz.xy;
+    xy = 2.0 * xy - 1.0;
+    xy.x *= screen_texture_sz.x / screen_texture_sz.y;
+
+    float u = (atan(xy.y, xy.x) + PI)/(2*PI);
+    float v = 0.8/length(xy);
+
+    u = u * 10;
+    float v2 = v * 10 + time * time2;
+    v = v * 10 + time * time1;
+
+   	const float gradx = 90;
+   	const float grady = 3;
+   	float x = int(mod(u + 0.5, 2) * gradx);
+   	float y = int(mod(v + 0.5, 2) * grady);
+   	float y2 = int(mod(v2 + 0.5, 2) * grady);
+
+    float color = Noise2d(vec2(y, x)) > 0.985 ? 0.3 : 0.0;
+    color += rand(vec2(y2,x)) > 0.99 ? 0.5 : 0.0;
+    return vec3(color);
+}
 
 vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
     const float Ka = 0.2;
@@ -388,6 +447,8 @@ vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
         float specular = diffuse * pow(clamp(dot(reflection, light), 0.0, 1.0), 36.0);
 
         color = color * ambient * occ + color * diffuse * Kd * occ + specular;
+    } else {
+    	color = starfield();
     }
 
     return color;
