@@ -302,7 +302,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     // Start with loading an image
     commands <- Command{Code: CmdLoadImage}
 
-    r.Clock().SetMaxFrameRate(60)
+    r.Clock().SetMaxFrameRate(30)
 
     zerorect := image.Rect(0, 0, 0, 0)
     for running {
