@@ -1,3 +1,9 @@
+// Tortured flying floppy modeled using distance functions
+// (C) 2015 Viacheslav Slavinsky
+// 
+// Mad props to Iñigo Quilez/iq
+// Explanation of the principle:
+// http://iquilezles.org/www/articles/distfunctions/distfunctions.htm
 #version 120
 
 #define DYNAMIC_MATRICES
@@ -95,6 +101,11 @@ float NiceTorus(vec3 p, vec2 radii) {
     return TorusTx(p, mat3(xform_Torus), radii);
 }
 
+float cylinder(in vec3 q, in vec2 radius_height, in vec3 offset) {
+    vec3 xformedq = q + offset;
+    return sdCappedCylinderZ(xformedq, radius_height);
+}
+
 vec2 difmax(in vec2 a, in vec2 b) {
     return (a.x > b.x) ? a : b;
 }
@@ -105,7 +116,7 @@ vec2 difmin(in vec2 a, in vec2 b) {
 
 // polynomial smooth min (k = 0.1);
 // Mixed material encoded as mat_a * 10 + mat_b * 100, fractional part is mix value
-vec2 smin_poly(in vec2 a, in vec2 b, float k)
+vec2 smin_poly(in vec2 a, in vec2 b, in float k)
 {
     float h = clamp(0.5 + 0.5*(b.x - a.x)/k, 0.0, 1.0);
     //return vec2(mix(b, a, h) - k*h*(1.0-h));
@@ -125,29 +136,24 @@ float Difference(in float d1, in float d2) {
 	return max(d1, -d2);
 }
 
-vec2 Intersect(vec2 d1, vec2 d2) {
+vec2 Intersect(in vec2 d1, in vec2 d2) {
 	return difmax(d1, d2);
 }
 
-float Intersect(float d1, float d2) {
+float Intersect(in float d1, in float d2) {
 	return max(d1, d2);
 }
 
-vec2 Union(vec2 d1, vec2 d2) {
+vec2 Union(in vec2 d1, in vec2 d2) {
 	return difmin(d1, d2);
 }
 
-float Union(float d1, float d2) {
+float Union(in float d1, in float d2) {
 	return min(d1, d2);
 }
 
-vec2 Blend(vec2 d1, vec2 d2) {
+vec2 Blend(in vec2 d1, in vec2 d2) {
     return smin_poly(d1, d2, 1.0);//0.2 + 0.2 * sin(time/2.0));
-}
-
-float cylinder(in vec3 q, in vec2 radius_height, in vec3 offset) {
-    vec3 xformedq = q + offset;
-    return sdCappedCylinderZ(xformedq, radius_height);
 }
 
 #ifdef DYNAMIC_MATRICES
@@ -259,12 +265,9 @@ vec2 map(in vec3 q) {
 
     // the disk
     vec2 disk = disk(q, mat_cyan, mat_red);
-    //return floppy_case;
     vec2 diskette = Union(Union(Union(floppy_case, door), disk), wprot_tab);
-    //return diskette;
 
 	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time))), mat_red);
-//    return torus;
 	return Blend(diskette, torus);
 #else
 	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time))), mat_red);
@@ -293,7 +296,7 @@ vec2 march(in vec3 origin, in vec3 r) {
     return vec2(t, m);
 }
 
-vec3 calcNormal(in vec3 pos ) {
+vec3 calcNormal(in vec3 pos) {
     vec3 eps = vec3( 0.001, 0.0, 0.0 );
     vec3 nor = vec3(
         map(pos+eps.xyy).x - map(pos-eps.xyy).x,
@@ -302,7 +305,7 @@ vec3 calcNormal(in vec3 pos ) {
     return normalize(nor);
 }
 
-float calcAO( in vec3 pos, in vec3 nor )
+float calcAO(in vec3 pos, in vec3 nor)
 {
     float occ = 0.0;
     float sca = 1.0;
@@ -330,63 +333,64 @@ float softshadow(in vec3 ro, in vec3 rd, in float mint, in float tmax)
     return clamp(res, 0.0, 1.0);
 }
 
-// const vec3[] colormap = vec3[] (
-//         vec3(0.6, 0.2, 0.8),
-//         vec3(0.2, 0.8, 0.6),
-//         vec3(0.9, 0.3, 0.3)
-//     );
-
 const vec3[3] colormap = vec3[3] (
         vec3(0.2, 0.3, 0.8),
         vec3(0.8, 0.8, 0.8),
         vec3(0.9, 0.3, 0.3)
     );
 
-// License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
-// The input, n, should have a magnitude in the approximate range [0, 100].
-// The output is pseudo-random, in the range [0,1].
-// xaot88 @ Shadertoy
-float Hash(float n)
-{
-	return fract( (1.0 + cos(n)) * 415.92653);
-}
-
-float Noise2d(in vec2 x)
-{
-    float xhash = Hash( x.x * 37.0 );
-    float yhash = Hash( x.y * 57.0 );
-    return fract( xhash + yhash );
-}
-
-float rand(vec2 co) {
+float rand(in vec2 co) {
   return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
 }
 
-const float[4] checkers = float[4] (0, 1.0, 1.0, 0.0);
+// Epic zooming star field. Only depends on rand(vec2).
+// if STARFIELD_CHECKERS is defined, it uses a checker pattern instead of rand()
+// STARFIELD_CHECKERS with STARFIELD_RANDOM is also a nice effect.
+#define _STARFIELD_CHECKERS
+#define STARFIELD_RANDOM
 
 vec3 starfield(in vec2 xy) {
 	const float speed1 = 2.0;
 	const float speed2 = 0.43;
-
+#ifdef STARFIELD_CHECKERS
+    const float[4] checkers = float[4] (0, 1.0, 1.0, 0.0);
+#endif
+    // find u,v coordinates of a cylinder projection
     float u = (atan(xy.y, xy.x) + PI)/(2.0 * PI);
 
+#ifdef STARFIELD_RANDOM
     float rand_r1 = rand(vec2(0, floor(u * 100.0)));
     float rand_r2 = rand(vec2(floor(u * 100.0), rand_r1));
+#else
+    const float rand_r1 = 0.0;
+    const float rand_r2 = 0.0;
+#endif
+
+    // altering radii shifts stars closer/farther to the viewing axis
+    // multiply by rand_r1 or rand_r2 for radical perspective shifts
     float r = 0.8/(length(xy) + rand_r1);
     float r2 = 0.2/(length(xy) + rand_r2);
 
-    float v = r * 10.0 + time * speed1 * (1.0 - 0.5 * rand_r2);
-    float v2 = r2 * 10.0 + time * speed2 * (1.0 - 0.6 * rand_r1); // > 1 to make stars go in both directions
+    // By altering v coordinate with time and added noise
+    // we can modify speed of every star, or even make some of them
+    // go in other direction
+    float v1 = r * 10.0 + time * speed1 * (1.0 - 0.5 * rand_r2);
+    float v2 = r2 * 10.0 + time * speed2 * (1.0 - 0.6 * rand_r1); 
 
+    // Handpicked values for rand() inputs
    	float x = floor(u * 1800.0);
-   	float y = floor(mod(v, 2.0) * 3.0);
+   	float y1 = floor(mod(v1, 2.0) * 3.0);
    	float y2 = floor(mod(v2, 2.0) * 13.29);
 
-    float color = int(rand(vec2(x,y)) * 1000.0) < 5  ? 0.5 - r/2.0 : 0.0;
-    color += int(rand(vec2(x,y2)) * 1000.0) < 5 ? 0.4 - r2*1.5 : 0.0;
-
-    // float color = rand_r1 * checkers[int(mod(int(8*u/10.0), 2)) * 2 + int(mod(v/10.0, 2))];
-    // color += rand_r2 * checkers[int(mod(int(8*u/10.0), 2)) * 2 + int(mod(v2/10.0, 2))];
+#ifdef STARFIELD_CHECKERS
+    float color = (1.0 - rand_r1) * checkers[int(mod(int(16 * u), 2)) * 2 + int(mod(v1, 2))];
+#ifdef STARFIELD_RANDOM
+    color += (1.0 - rand_r2) * checkers[int(mod(int(16 * u), 2)) * 2 + int(mod(v2, 2))];
+#endif
+#else
+    float color = int(rand(vec2(x, y1)) * 1000.0) < 5  ? 0.5 - r/2.0 : 0.0;
+    color += int(rand(vec2(x, y2)) * 1000.0) < 5 ? 0.4 - r2*1.5 : 0.0;
+#endif
     return vec3(color);
 }
 
@@ -397,21 +401,18 @@ vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
     vec2 res = march(origin, ray);
     float t = res.x;
     float m = res.y;
-    //vec3 color = vec3(-m/50.0);
     vec3 color = vec3(0.0, 0.0, 0.0);
     if (m > -0.5) {
     	if (m > 9.0) {
-    		// m = 290.123123
-    		float ratio = fract(m);
-    		m = m / 10.0;
-    		int index1 = int(mod(m, 10.0));
-    		m = m / 10.0;
-    		int index2 = int(m);//int(mod(m, 10));
-    		color = mix(colormap[index1], colormap[index2], vec3(ratio));
-    	} else {    		
-	        //int material = int(m - 1.0);
+    		// decode and mix blended materials
+            color = mix(
+                colormap[int(mod(m/10.0, 10.0))],
+                colormap[int(m/100.0)],
+                vec3(fract(m))
+                );
+    	} else {    	
+            // single material	
 	        color = colormap[int(m - 1.0)];
-	        //color = mix(colormap[material], colormap[material+1], vec3(m - 1.0 - material));
     	}
         vec3 pos = origin + t * ray;
         vec3 normal = calcNormal(pos);
@@ -422,13 +423,12 @@ vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
 
         float ambient = Ka * clamp(0.5 + 0.5 * normal.y, 0.0, 1.0);
         float diffuse = Kd * clamp(dot(normal, light), 0.0, 1.0);
-
-        diffuse *= softshadow(pos, light, 0.01, 1.0); // shadows not farther away than 0.5
+        diffuse *= softshadow(pos, light, 0.01, 1.0); // shadows not farther away than 1.0
         float specular = diffuse * pow(clamp(dot(reflection, light), 0.0, 1.0), 36.0);
 
         color = color * ambient * occ + color * diffuse * Kd * occ + specular;
     } else {
-    	color = vec3(-1.0);//starfield();
+    	color = vec3(-1.0);
     }
 
     return color;
@@ -453,20 +453,12 @@ void main(void) {
 
     float lookFrom = 1.0;
 
-    //vec3 lightPos = vec3(-sin(time)*8.0, sin(time), cos(time)*8.0);
     vec3 lightPos = vec3(0.3, 4.0, 4.0 * lookFrom);
-    //lightPos = normalize(lightPos);
-
-    vec2 drunk = vec2(sin(time), cos(time));
-    //vec3 origin = vec3(uv + drunk, -3.0 + time + sin(time));
-    //vec3 origin = vec3(uv, -3.0);
-    //origin -= vec3(0.5, 0.5, 0.0);
 
     // camera
     const vec2 timewobble = vec2(0.25, 0.2);
     float bobtime = time + timewobble.x*uv.x*sin(time * 0.1) + timewobble.y*uv.y*cos(time * 0.13);
     vec3 origin = vec3(2.0 + 4.2 * cos(0.8*bobtime), 10.0 * sin(bobtime), 10.0 * lookFrom + 4.2 * sin(0.8*bobtime));
-    //vec3 target = vec3( -0.5, -0.4, 0.5 );
     vec3 target = vec3(0.0, 0.0, 0.0);
 
     // camera-to-world transformation
@@ -474,7 +466,6 @@ void main(void) {
 
     // ray direction
     vec3 rd = ca * normalize(vec3(uv, 2.5));
-
 
     //  vec3 r = normalize(vec3(uv, 1.0));
     vec3 color = render(origin, rd, lightPos);
