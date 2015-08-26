@@ -90,7 +90,7 @@ float TorusTx(vec3 p, mat3 invm, vec2 t) {
 
 float NiceTorus(vec3 p, vec2 radii) {
 #ifdef DYNAMIC_MATRICES
-    mat4 xform_Torus = mRot(radians(time*100 + gl_FragCoord.y), 0.0, radians(45.0), vec4(0.0, 0.0, 0.0, 1.0));
+    mat4 xform_Torus = mRot(radians(time*100.0 + gl_FragCoord.y), 0.0, radians(45.0), vec4(0.0, 0.0, 0.0, 1.0));
 #endif
     return TorusTx(p, mat3(xform_Torus), radii);
 }
@@ -144,24 +144,6 @@ float Union(float d1, float d2) {
 vec2 Blend(vec2 d1, vec2 d2) {
     return smin_poly(d1, d2, 1.0);//0.2 + 0.2 * sin(time/2.0));
 }
-
-/*
-vec2 map(vec3 q) {
-        float scale = 3.0;
-
-#if 0
-        float sparcity = 2.0;
-        vec3 p = mod(q, scale * sparcity) - vec3(scale * sparcity / 2.0);
-#else
-        vec3 p = q;
-#endif
-
-        vec2 sphera = vec2(sphere(p), 3.0);
-        vec2 box = vec2(udBox(p, vec3(0.4) * scale), 1.0);
-        vec2 torus = vec2(NiceTorus(p + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time)) ), 2.0);
-        return Difference(Blend(box, sphera), torus);// Blend(box, torus); //
-}
-*/
 
 float cylinder(in vec3 q, in vec2 radius_height, in vec3 offset) {
     vec3 xformedq = q + offset;
@@ -255,12 +237,15 @@ vec2 floppy_case(in vec3 q, in float material) {
     return vec2(Difference(box, cutout), material);
 }
 
-vec2 map(vec3 q) {
+vec2 map(in vec3 q) {
     const float scale = 3.0;
     const float mat_purple = 1.0;
     const float mat_cyan = 2.0;
     const float mat_red = 3.0;
 #if 1
+    // this reliably kills MacBook Air with Lion, to death
+    //const float sparcity = 4.0;
+    //q = mod(q - vec3(scale * sparcity / 2.0), scale * sparcity) - vec3(scale * sparcity / 2.0);
 
     // case
     vec2 floppy_case = floppy_case(q, mat_purple);
@@ -377,44 +362,31 @@ float rand(vec2 co) {
   return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
 }
 
-float circles(in vec2 uv, in float phase) {
-	float dia = uv.x*uv.x + uv.y*uv.y;
-    float r = abs(mod(dia, 0.1) - fract(time*0.5 + phase)*0.1) < 0.013 ? 1.0 : 0.0;
-    float fangle = (atan(uv.y, uv.x) + PI)/(2*PI);
-    int angle = int(360 * fract(phase + fangle));
+const float[4] checkers = float[4] (0, 1.0, 1.0, 0.0);
 
-    //dia = int(dia * 100)/100.0;
-    r = r * (rand(vec2(angle, dia)) > 0.98 ? 1.0 : 0.0);
-
-    return r;
-}
-
-const float[4] checkers = float[4] (0, 1, 1, 0);
-
-vec3 starfield() {
-	const float time1 = 2.0;
-	const float time2 = 1.43;
-
-    vec2 xy = gl_FragCoord.xy / screen_texture_sz.xy;
-    xy = 2.0 * xy - 1.0;
-    xy.x *= screen_texture_sz.x / screen_texture_sz.y;
+vec3 starfield(in vec2 xy) {
+	const float speed1 = 2.0;
+	const float speed2 = 0.43;
 
     float u = (atan(xy.y, xy.x) + PI)/(2.0 * PI);
-    float r = 0.8/(length(xy) + rand(vec2(0, floor(u * 100))));
-    float r2 = 0.2/(length(xy) + rand(vec2(floor(u * 100), 0)));
 
-    u = u * 20.0;
-    float v = r * 10.0 + time * time1;
-    float v2 = r2 * 10.0 + time * time2;
+    float rand_r1 = rand(vec2(0, floor(u * 100.0)));
+    float rand_r2 = rand(vec2(floor(u * 100.0), rand_r1));
+    float r = 0.8/(length(xy) + rand_r1);
+    float r2 = 0.2/(length(xy) + rand_r2);
 
-   	const float gradx = 90.0;
-   	const float grady = 3.0;
-   	float x = floor(mod(u + 0.5, 2.0) * gradx);
-   	float y = floor(mod(v + 0.5, 2.0) * grady);
-   	float y2 = floor(mod(v2 + 0.5, 2.0) * grady);
+    float v = r * 10.0 + time * speed1 * (1.0 - 0.5 * rand_r2);
+    float v2 = r2 * 10.0 + time * speed2 * (1.0 - 0.6 * rand_r1); // > 1 to make stars go in both directions
 
-    float color = int(rand(vec2(x,y)) * 1000) < 19  ? 0.5 - r/2.0 : 0.0;
-    color += int(rand(vec2(x,y2)) * 1000) < 9 ? 0.5 - r2/2.0: 0.0;
+   	float x = floor(u * 1800.0);
+   	float y = floor(mod(v, 2.0) * 3.0);
+   	float y2 = floor(mod(v2, 2.0) * 13.29);
+
+    float color = int(rand(vec2(x,y)) * 1000.0) < 5  ? 0.5 - r/2.0 : 0.0;
+    color += int(rand(vec2(x,y2)) * 1000.0) < 5 ? 0.4 - r2*1.5 : 0.0;
+
+    // float color = rand_r1 * checkers[int(mod(int(8*u/10.0), 2)) * 2 + int(mod(v/10.0, 2))];
+    // color += rand_r2 * checkers[int(mod(int(8*u/10.0), 2)) * 2 + int(mod(v2/10.0, 2))];
     return vec3(color);
 }
 
@@ -456,7 +428,7 @@ vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
 
         color = color * ambient * occ + color * diffuse * Kd * occ + specular;
     } else {
-    	color = starfield();
+    	color = vec3(-1.0);//starfield();
     }
 
     return color;
@@ -506,6 +478,9 @@ void main(void) {
 
     //  vec3 r = normalize(vec3(uv, 1.0));
     vec3 color = render(origin, rd, lightPos);
+    if (color.x < 0.0) {
+    	color = starfield(uv);
+    }
 
     gl_FragColor = vec4(color, 1.0);
 }
