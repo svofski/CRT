@@ -302,8 +302,7 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
     // Start with loading an image
     commands <- Command{Code: CmdLoadImage}
 
-    clock := clock.New()
-    clock.SetMaxFrameRate(70)
+    r.Clock().SetMaxFrameRate(60)
 
     zerorect := image.Rect(0, 0, 0, 0)
     for running {
@@ -344,8 +343,6 @@ func gfxLoop(w window.Window, r gfx.Renderer) {
             r.Render()
         }
         lock.Unlock()
-
-        clock.Tick()
         runtime.Gosched()
     }
     w.Close()
@@ -357,5 +354,6 @@ func main() {
     props.SetPrecision(gfx.Precision{
             RedBits: 8, GreenBits: 8, BlueBits: 8, AlphaBits: 8, Samples: 4,
         })
+    props.SetVSync(false)
 	window.Run(gfxLoop, props)
 }
