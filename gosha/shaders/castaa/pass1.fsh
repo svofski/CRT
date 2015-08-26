@@ -107,11 +107,11 @@ vec2 difmin(in vec2 a, in vec2 b) {
 // Mixed material encoded as mat_a * 10 + mat_b * 100, fractional part is mix value
 vec2 smin_poly(in vec2 a, in vec2 b, float k)
 {
-    float h = clamp( 0.5+0.5*(b.x - a.x)/k, 0.0, 1.0 );
+    float h = clamp(0.5 + 0.5*(b.x - a.x)/k, 0.0, 1.0);
     //return vec2(mix(b, a, h) - k*h*(1.0-h));
     float blend = mix(b.x, a.x, h) - k * h * (1.0 - h);
-    int m1 = int(a.y - 1.0) * 10;
-    int m2 = int(b.y - 1.0) * 100;
+    float m1 = floor(a.y - 1.0) * 10.0;
+    float m2 = floor(b.y - 1.0) * 100.0;
     float mat = m1 + m2 + clamp(1.0 - h, 0.0, 0.999);
     return vec2(blend, mat);
 }
@@ -188,8 +188,8 @@ float ofsbox(in vec3 q, in vec3 dimension, in vec3 offset) {
 
 vec2 floppy_door(in vec3 q, in float material) {
     q -= vec3(1.2/2.0 + 1.2/2.0 * sin(time), 0.0, 0.0);
-    float door_metal = ofsbox(q, vec3(4.08/2, 3.05/2, .155), vec3(0.34, -3.05, 0.0));
-    float door_die = ofsbox(q, vec3(1.1/2.0, 2.5/2.0, .20), vec3((9.0-1.1)/2 - 2.8, -(9.0-2.5-0.5)/2, 0.0));
+    float door_metal = ofsbox(q, vec3(4.08/2.0, 3.05/2.0, .155), vec3(0.34, -3.05, 0.0));
+    float door_die = ofsbox(q, vec3(1.1/2.0, 2.5/2.0, .20), vec3((9.0-1.1)/2.0 - 2.8, -(9.0-2.5-0.5)/2.0, 0.0));
     return vec2(Difference(door_metal, door_die), material);
 }
 
@@ -226,14 +226,14 @@ vec2 floppy_case(in vec3 q, in float material) {
 #endif
     box = Intersect(box, wedge_cut);
 
-    float door_cut_front = ofsbox(q, vec3(3.05, 3.05/2, .06), vec3(-0.6, -3.05, 0.3));
-    float door_cut_rear  = ofsbox(q, vec3(3.05, 3.05/2, .06), vec3(-0.6, -3.05, -0.3));
+    float door_cut_front = ofsbox(q, vec3(3.05, 3.05/2.0, .06), vec3(-0.6, -3.05, 0.3));
+    float door_cut_rear  = ofsbox(q, vec3(3.05, 3.05/2.0, .06), vec3(-0.6, -3.05, -0.3));
 
-    float sticker_cut_front = ofsbox(q, vec3(3.65, 5.5/2.0, .06), vec3(0.0, (9.0-5.5)/2, 0.3));
-    float sticker_cut_rear = ofsbox(q, vec3(3.65, 1.8/2.0, .06), vec3(0.0, (9.0-1.8)/2, -0.3));
+    float sticker_cut_front = ofsbox(q, vec3(3.65, 5.5/2.0, .06), vec3(0.0, (9.0-5.5)/2.0, 0.3));
+    float sticker_cut_rear = ofsbox(q, vec3(3.65, 1.8/2.0, .06), vec3(0.0, (9.0-1.8)/2.0, -0.3));
     float sticker_cut = Union(sticker_cut_front, sticker_cut_rear);
 
-    float access_die = ofsbox(q, vec3(1.0/2.0, 2.5/2.0, .16), vec3(0.0, -(9.0-2.5-0.5)/2, 0));
+    float access_die = ofsbox(q, vec3(1.0/2.0, 2.5/2.0, .16), vec3(0.0, -(9.0-2.5-0.5)/2.0, 0));
     float motor_die = cylinder(q, vec2(2.7/2.0, .25), vec3(0.0, 0.0, -0.09));
 
     float sidecut_left = cylinder(q, vec2(0.45/2.0, .25), vec3(4.5, -(4.5-1.0), -0.09));
@@ -260,12 +260,14 @@ vec2 map(vec3 q) {
     const float mat_purple = 1.0;
     const float mat_cyan = 2.0;
     const float mat_red = 3.0;
+#if 1
 
     // case
     vec2 floppy_case = floppy_case(q, mat_purple);
 
     float wprot_tab_ofs = 0.2 + 0.2*sin(time);
-    vec2 wprot_tab = vec2(ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .15/2), vec3(-(4.5-0.4), 4.5-0.4-wprot_tab_ofs, -0.15/2)), mat_red);
+    vec2 wprot_tab = vec2(ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .15/2.0), 
+    	vec3(-(4.5-0.4), 4.5-0.4-wprot_tab_ofs, -0.15/2.0)), mat_red);
 
     // door
     vec2 door = floppy_door(q, mat_cyan);
@@ -276,14 +278,18 @@ vec2 map(vec3 q) {
     vec2 diskette = Union(Union(Union(floppy_case, door), disk), wprot_tab);
     //return diskette;
 
-	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time)) ), 3.0);
+	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time))), mat_red);
 //    return torus;
 	return Blend(diskette, torus);
+#else
+	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time))), mat_red);
+    return torus;
+#endif
 }
 
 // x = distance, y = material
 vec2 march(in vec3 origin, in vec3 r) {
-    const float tmax = 25;
+    const float tmax = 25.0;
     const float precizion = 0.0001;
     float t = 0.0;
     float m = -1.0;
@@ -345,7 +351,7 @@ float softshadow(in vec3 ro, in vec3 rd, in float mint, in float tmax)
 //         vec3(0.9, 0.3, 0.3)
 //     );
 
-const vec3[] colormap = vec3[] (
+const vec3[3] colormap = vec3[3] (
         vec3(0.2, 0.3, 0.8),
         vec3(0.8, 0.8, 0.8),
         vec3(0.9, 0.3, 0.3)
@@ -355,12 +361,12 @@ const vec3[] colormap = vec3[] (
 // The input, n, should have a magnitude in the approximate range [0, 100].
 // The output is pseudo-random, in the range [0,1].
 // xaot88 @ Shadertoy
-float Hash( float n )
+float Hash(float n)
 {
 	return fract( (1.0 + cos(n)) * 415.92653);
 }
 
-float Noise2d( in vec2 x )
+float Noise2d(in vec2 x)
 {
     float xhash = Hash( x.x * 37.0 );
     float yhash = Hash( x.y * 57.0 );
@@ -386,28 +392,29 @@ float circles(in vec2 uv, in float phase) {
 const float[4] checkers = float[4] (0, 1, 1, 0);
 
 vec3 starfield() {
-	const float time1 = 1.0;
+	const float time1 = 2.0;
 	const float time2 = 1.43;
 
     vec2 xy = gl_FragCoord.xy / screen_texture_sz.xy;
     xy = 2.0 * xy - 1.0;
     xy.x *= screen_texture_sz.x / screen_texture_sz.y;
 
-    float u = (atan(xy.y, xy.x) + PI)/(2*PI);
-    float v = 0.8/length(xy);
+    float u = (atan(xy.y, xy.x) + PI)/(2.0 * PI);
+    float r = 0.8/(length(xy) + rand(vec2(0, floor(u * 100))));
+    float r2 = 0.2/(length(xy) + rand(vec2(floor(u * 100), 0)));
 
-    u = u * 10;
-    float v2 = v * 10 + time * time2;
-    v = v * 10 + time * time1;
+    u = u * 20.0;
+    float v = r * 10.0 + time * time1;
+    float v2 = r2 * 10.0 + time * time2;
 
-   	const float gradx = 90;
-   	const float grady = 3;
-   	float x = int(mod(u + 0.5, 2) * gradx);
-   	float y = int(mod(v + 0.5, 2) * grady);
-   	float y2 = int(mod(v2 + 0.5, 2) * grady);
+   	const float gradx = 90.0;
+   	const float grady = 3.0;
+   	float x = floor(mod(u + 0.5, 2.0) * gradx);
+   	float y = floor(mod(v + 0.5, 2.0) * grady);
+   	float y2 = floor(mod(v2 + 0.5, 2.0) * grady);
 
-    float color = Noise2d(vec2(y, x)) > 0.985 ? 0.3 : 0.0;
-    color += rand(vec2(y2,x)) > 0.99 ? 0.5 : 0.0;
+    float color = int(rand(vec2(x,y)) * 1000) < 19  ? 0.5 - r/2.0 : 0.0;
+    color += int(rand(vec2(x,y2)) * 1000) < 9 ? 0.5 - r2/2.0: 0.0;
     return vec3(color);
 }
 
@@ -424,14 +431,15 @@ vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
     	if (m > 9.0) {
     		// m = 290.123123
     		float ratio = fract(m);
-    		m = m / 10;
-    		int index1 = int(mod(m, 10));
-    		m = m / 10;
+    		m = m / 10.0;
+    		int index1 = int(mod(m, 10.0));
+    		m = m / 10.0;
     		int index2 = int(m);//int(mod(m, 10));
     		color = mix(colormap[index1], colormap[index2], vec3(ratio));
-    	} else {
-	        int material = int(m-1.0);
-	        color = mix(colormap[material], colormap[material+1], vec3(m - 1.0 - material));
+    	} else {    		
+	        //int material = int(m - 1.0);
+	        color = colormap[int(m - 1.0)];
+	        //color = mix(colormap[material], colormap[material+1], vec3(m - 1.0 - material));
     	}
         vec3 pos = origin + t * ray;
         vec3 normal = calcNormal(pos);
@@ -459,10 +467,10 @@ float fog(float t) {
 }
 
 mat3 setCamera(in vec3 ro, in vec3 ta, float cr) {
-    vec3 cw = normalize(ta-ro);
-    vec3 cp = vec3(sin(cr), cos(cr),0.0);
-    vec3 cu = normalize( cross(cw,cp) );
-    vec3 cv = normalize( cross(cu,cw) );
+    vec3 cw = normalize(ta - ro);
+    vec3 cp = vec3(sin(cr), cos(cr), 0.0);
+    vec3 cu = normalize(cross(cw,cp));
+    vec3 cv = normalize(cross(cu,cw));
     return mat3( cu, cv, cw );
 }
 
@@ -471,10 +479,10 @@ void main(void) {
     uv = 2.0 * uv - 1.0;
     uv.x *= screen_texture_sz.x / screen_texture_sz.y;
 
-    float lookFrom = 1;
+    float lookFrom = 1.0;
 
     //vec3 lightPos = vec3(-sin(time)*8.0, sin(time), cos(time)*8.0);
-    vec3 lightPos = vec3(0.3, 4, 4 * lookFrom);
+    vec3 lightPos = vec3(0.3, 4.0, 4.0 * lookFrom);
     //lightPos = normalize(lightPos);
 
     vec2 drunk = vec2(sin(time), cos(time));
@@ -485,7 +493,7 @@ void main(void) {
     // camera
     const vec2 timewobble = vec2(0.25, 0.2);
     float bobtime = time + timewobble.x*uv.x*sin(time * 0.1) + timewobble.y*uv.y*cos(time * 0.13);
-    vec3 origin = vec3(2 + 4.2 * cos(0.8*bobtime), 0 + 10.0 * sin(bobtime), 10 * lookFrom + 4.2 * sin(0.8*bobtime));
+    vec3 origin = vec3(2.0 + 4.2 * cos(0.8*bobtime), 10.0 * sin(bobtime), 10.0 * lookFrom + 4.2 * sin(0.8*bobtime));
     //vec3 target = vec3( -0.5, -0.4, 0.5 );
     vec3 target = vec3(0.0, 0.0, 0.0);
 
