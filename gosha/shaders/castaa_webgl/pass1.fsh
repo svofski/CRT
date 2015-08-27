@@ -1,60 +1,10 @@
+#version 120
 
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<title>C E R E U S  Remake</title>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<style>
-			body {
-				color: #ffffff;
-				font-family:Monospace;
-				font-size:13px;
-				text-align:center;
-				font-weight: bold;
+//uniform vec2 screen_texture_sz;
 
-				background-color: #000000;
-				margin: 0px;
-				overflow: hidden;
-			}
+uniform vec3 color_texture_sz;
+uniform vec3 screen_texture_sz;
 
-			#info {
-				position: absolute;
-				top: 0px; width: 100%;
-				padding: 5px;
-			}
-
-			a {
-
-				color: #ffffff;
-			}
-
-			#oldie a { color:#da0 }
-		</style>
-	</head>
-	<body>
-
-		<div id="container"></div>
-		<div id="info"><a href="http://sensi.org/~svo/cereus" target="_blank">C E R E U S</a> flying floppy remake by <a href="http://sensi.org/~svo" target="_blank">svofski</a></div>
-
-		<script src="js/three.min.js"></script>
-
-		<script src="js/Detector.js"></script>
-		<script src="js/stats.min.js"></script>
-
-		<script id="vertexShader" type="x-shader/x-vertex">
-
-			void main()	{
-
-				gl_Position = vec4( position, 1.0 );
-
-			}
-
-		</script>
-		<script id="fragmentShader" type="x-shader/x-fragment">
-precision highp float;
-
-uniform vec2 resolution;
 uniform sampler2D colormap;
 uniform float time;
 
@@ -373,12 +323,6 @@ const mat3 colormapm = mat3(
     );
 
 
-vec3 getColor(in int index) {
-		return texture2D(colormap, vec2(float(index)/3.0, 0.0)).rgb;
-	  // return mix(mix(colormapm[0], colormapm[1], clamp(float(index), 0.0, 1.0)),
-		// 				colormapm[2], clamp(float(index - 1), 0.0, 1.0));
-}
-
 #define GETCOLORT(index) texture2D(colormap, vec2(float(index)/3.0, 0.0)).rgb
 #define GETCOLORM(index) mix(mix(colormapm[0], colormapm[1], clamp(float(index), 0.0, 1.0)), colormapm[2], clamp(float(index - 1), 0.0, 1.0))
 
@@ -498,9 +442,9 @@ vec3 starfield(in vec2 xy) {
 
 
 void main(void) {
-    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec2 uv = gl_FragCoord.xy / screen_texture_sz.xy;
     uv = 2.0 * uv - 1.0;
-    uv.x *= resolution.x / resolution.y;
+    uv.x *= screen_texture_sz.x / screen_texture_sz.y;
 
     float lookFrom = 1.0;
 
@@ -522,110 +466,6 @@ void main(void) {
     vec4 color = render(origin, rd, lightPos);
 		color += (1.0 - color.a) * vec4(starfield(uv), 1.0);
 
+    //color = vec4(starfield(uv), 1.0);
     gl_FragColor = color;
 }
-
-
-		</script>
-
-		<script id="fragmentShader" type="x-shader/x-fragment" src="shaders/pass1.fsh">
-		</script>
-
-		<script>
-
-			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
-
-			var container, stats;
-
-			var camera, scene, renderer;
-
-			var uniforms;
-
-			init();
-			animate();
-
-			function init() {
-
-				container = document.getElementById( 'container' );
-
-				camera = new THREE.Camera();
-				camera.position.z = 1;
-
-				scene = new THREE.Scene();
-
-				var geometry = new THREE.PlaneBufferGeometry( 2, 2 );
-				var colorData = new Uint8Array(3*3);
-				colorData[0] = 20; colorData[1] = 30; colorData[2] = 80;
-				colorData[3] = 80; colorData[4] = 80; colorData[5] = 80;
-				colorData[6] = 90; colorData[7] = 30; colorData[8]= 30;
-				for (i = 0; i < colorData.length; i++) {
-						colorData[i] = colorData[i] * 255/100;
-				}
-				var tuxture = new THREE.DataTexture(colorData, 3, 1, THREE.RGBFormat);
-				tuxture.magFilter = THREE.NearestFilter;
-				tuxture.needsUpdate = true;
-				uniforms = {
-					time: { type: "f", value: 1.0 },
-					resolution: { type: "v2", value: new THREE.Vector2() },
-					colormap: { type: "t", value: tuxture
-					}
-				};
-
-				var material = new THREE.ShaderMaterial( {
-
-					uniforms: uniforms,
-					vertexShader: document.getElementById( 'vertexShader' ).textContent,
-					fragmentShader: document.getElementById( 'fragmentShader' ).textContent
-
-				} );
-
-				var mesh = new THREE.Mesh( geometry, material );
-				scene.add( mesh );
-
-				renderer = new THREE.WebGLRenderer();
-				renderer.setPixelRatio( window.devicePixelRatio );
-				container.appendChild( renderer.domElement );
-
-				stats = new Stats();
-				stats.domElement.style.position = 'absolute';
-				stats.domElement.style.top = '0px';
-				container.appendChild( stats.domElement );
-
-				onWindowResize();
-
-				window.addEventListener( 'resize', onWindowResize, false );
-
-			}
-
-			function onWindowResize( event ) {
-
-				renderer.setSize( window.innerWidth, window.innerHeight );
-
-				uniforms.resolution.value.x = renderer.domElement.width;
-				uniforms.resolution.value.y = renderer.domElement.height;
-
-			}
-
-			//
-
-			function animate() {
-
-				requestAnimationFrame( animate );
-
-				render();
-				stats.update();
-
-			}
-
-			function render() {
-
-				uniforms.time.value += 1.0/60.0;
-
-				renderer.render( scene, camera );
-
-			}
-
-		</script>
-
-	</body>
-</html>
