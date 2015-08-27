@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>three.js webgl - shader [Monjori]</title>
+		<title>C E R E U S  Remake</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 		<style>
@@ -35,7 +35,7 @@
 	<body>
 
 		<div id="container"></div>
-		<div id="info"><a href="http://threejs.org" target="_blank">three.js</a> - shader demo. featuring <a href="http://www.pouet.net/prod.php?which=52761" target="_blank">Monjori by Mic</a></div>
+		<div id="info"><a href="http://sensi.org/~svo" target="_blank">C E R E U S</a> flying floppy remake by <a href="http://sensi.org/~svo" target="_blank">svofski</a></div>
 
 		<script src="js/three.min.js"></script>
 
@@ -52,42 +52,12 @@
 
 		</script>
 		<script id="fragmentShader" type="x-shader/x-fragment">
-#define DYNAMIC_MATRICES
 
 uniform vec2 resolution;
 
 uniform float time;
 
-#ifdef DYNAMIC_MATRICES
-#else
-varying mat3 xform_Torus;
-varying mat4 xform_WedgeCut;
-varying mat4 xform_MotorSideCut;
-varying mat3 xform_DiskSpin;
-#endif
-
 #define PI          3.14159265358
-
-float sphere(vec3 q) {
-#if 0
-        float r;
-
-        float scale = 1.0;
-        float sparcity = 4.0;
-        vec3 p;
-        if (q.y < 2) {
-            p = mod(q - vec3(scale * sparcity / 2.0), scale * sparcity) - vec3(scale * sparcity / 2.0);
-            r = 1.0 + sin(length( (q - vec3(scale * sparcity / 2.0)) / (scale * sparcity)) + time);
-        } else {
-            p = q;
-        }
-#else
-        vec3 p = q;
-        float r = 1.8 + 0.2*sin(time);
-#endif
-
-    return length(p) - r;
-}
 
 float udBox( vec3 p, vec3 b )
 {
@@ -134,9 +104,7 @@ float TorusTx(vec3 p, mat3 invm, vec2 t) {
 }
 
 float NiceTorus(vec3 p, vec2 radii) {
-#ifdef DYNAMIC_MATRICES
     mat4 xform_Torus = mRot(radians(time*100.0 + gl_FragCoord.y), 0.0, radians(45.0), vec4(0.0, 0.0, 0.0, 1.0));
-#endif
     return TorusTx(p, mat3(xform_Torus), radii);
 }
 
@@ -152,6 +120,7 @@ vec2 difmax(in vec2 a, in vec2 b) {
 vec2 difmin(in vec2 a, in vec2 b) {
     return (a.x < b.x) ? a : b;
 }
+
 
 // polynomial smooth min (k = 0.1);
 // Mixed material encoded as mat_a * 10 + mat_b * 100, fractional part is mix value
@@ -195,23 +164,17 @@ vec2 Blend(in vec2 d1, in vec2 d2) {
     return smin_poly(d1, d2, 1.0);//0.2 + 0.2 * sin(time/2.0));
 }
 
-#ifdef DYNAMIC_MATRICES
 float rotbox_z(in vec3 q, in vec3 dimension, in float angle, in vec3 offset) {
     mat4 xform = mRot(0.0, 0.0, angle, vec4(offset, 1.0));
     vec3 xformedq = (xform * vec4(q, 1.0)).xyz;
     return udBox(xformedq, dimension);
 }
-#else
-float box_matrix(in vec3 q, in vec3 dimension, in mat4 xform) {
-    vec3 xformedq = (xform * vec4(q, 1.0)).xyz;
-    return udBox(xformedq, dimension);
-}
-#endif
 
 float ofsbox(in vec3 q, in vec3 dimension, in vec3 offset) {
     vec3 xformedq = q + offset;
     return udBox(xformedq, dimension);
 }
+
 
 vec2 floppy_door(in vec3 q, in float material) {
     q -= vec3(1.2/2.0 + 1.2/2.0 * sin(time), 0.0, 0.0);
@@ -221,22 +184,14 @@ vec2 floppy_door(in vec3 q, in float material) {
 }
 
 vec2 disk(in vec3 q, in float mat_metal, in float mat_film) {
-#ifdef DYNAMIC_MATRICES
     q = (mRot(0.0, 0.0, time * 0.71, vec4(0.0)) * vec4(q, 1.0)).xyz;
-#else
-    q = xform_DiskSpin * q;
-#endif
     vec2 motor_grip_main = vec2(cylinder(q, vec2(2.6/2.0, .13), vec3(0.0, 0.0, -0.1)), mat_metal);
     vec2 surface = vec2(cylinder(q, vec2((8.9-0.1)/2.0, .01), vec3(0.0, 0.0, 0.0)), mat_film);
     motor_grip_main = Union(motor_grip_main, surface);
 
     float motor_grip_inner = cylinder(q, vec2(2.5/2.0, .13), vec3(0.0, 0.0, -0.05));
     float motor_grip_axis = ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .25), vec3(0.0));
-#ifdef DYNAMIC_MATRICES
     float motor_side = rotbox_z(q, vec3(0.4/2.0, 0.8/2.0, .25), radians(20.0), vec3(0.8, 0.0, 0.0));
-#else
-    float motor_side = box_matrix(q, vec3(0.4/2.0, 0.8/2.0, .25), xform_MotorSideCut);
-#endif
     float motor_grip_cut = Union(motor_grip_axis, motor_grip_inner);
     motor_grip_cut = Union(motor_grip_cut, motor_side);    
     vec2 disk = Difference(motor_grip_main, vec2(motor_grip_cut, mat_metal));
@@ -244,13 +199,9 @@ vec2 disk(in vec3 q, in float mat_metal, in float mat_film) {
     return disk;
 }
 
-vec2 floppy_case(in vec3 q, in float material) {
+vec2 foppy_case(in vec3 q, in float material) {
     float box = udBox(q, vec3(4.5, 4.5, .15));
-#ifdef DYNAMIC_MATRICES
     float wedge_cut = rotbox_z(q, vec3(6.5, 6.5, .15), radians(45.0), vec3(-0.55, 0.0, 0.0));
-#else
-    float wedge_cut = box_matrix(q, vec3(6.5, 6.5, .15), xform_WedgeCut);
-#endif
     box = Intersect(box, wedge_cut);
 
     float door_cut_front = ofsbox(q, vec3(3.05, 3.05/2.0, .06), vec3(-0.6, -3.05, 0.3));
@@ -282,18 +233,19 @@ vec2 floppy_case(in vec3 q, in float material) {
     return vec2(Difference(box, cutout), material);
 }
 
+
 vec2 map(in vec3 q) {
     const float scale = 3.0;
     const float mat_purple = 1.0;
     const float mat_cyan = 2.0;
     const float mat_red = 3.0;
-#if 1
     // this reliably kills MacBook Air with Lion, to death
     //const float sparcity = 4.0;
     //q = mod(q - vec3(scale * sparcity / 2.0), scale * sparcity) - vec3(scale * sparcity / 2.0);
 
     // case
-    vec2 floppy_case = floppy_case(q, mat_purple);
+    //vec2 floppy_case = floppy_case(q, mat_purple);
+    vec2 floppy_case = foppy_case(q, mat_purple);
 
     float wprot_tab_ofs = 0.2 + 0.2*sin(time);
     vec2 wprot_tab = vec2(ofsbox(q, vec3(0.4/2.0, 0.4/2.0, .15/2.0), 
@@ -301,17 +253,13 @@ vec2 map(in vec3 q) {
 
     // door
     vec2 door = floppy_door(q, mat_cyan);
-
     // the disk
-    vec2 disk = disk(q, mat_cyan, mat_red);
-    vec2 diskette = Union(Union(Union(floppy_case, door), disk), wprot_tab);
+    vec2 disq = disk(q, mat_cyan, mat_red);
+ 
+    vec2 diskette = Union(Union(Union(floppy_case, door), disq), wprot_tab);
 
 	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time))), mat_red);
 	return Blend(diskette, torus);
-#else
-	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time))), mat_red);
-    return torus;
-#endif
 }
 
 // x = distance, y = material
@@ -378,6 +326,63 @@ float softshadow(in vec3 ro, in vec3 rd, in float mint, in float tmax)
 //         vec3(0.9, 0.3, 0.3)
 //     );
 
+vec3 getColor(int index) {
+    //return vec3(0.2, 0.3, 0.8);
+     return index == 0 ? vec3(0.2, 0.3, 0.8) : 
+            index == 1 ? vec3(0.8, 0.8, 0.8) :
+                         vec3(0.9, 0.3, 0.3);
+}
+
+vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
+    const float Ka = 0.2;
+    const float Kd = 0.8;
+
+    vec2 res = march(origin, ray);
+    float t = res.x;
+    float m = res.y;
+    vec3 color = vec3(0.0, 0.0, 0.0);
+    if (m > -0.5) {
+    	if (m > 9.0) {
+    		// decode and mix blended materials
+            int index1 = int(mod(m/10.0, 10.0));
+            int index2 = int(m/100.0);
+            float mixratio = fract(m);
+            color = mix(getColor(index1), getColor(index2), mixratio);
+    	} else {    	
+            // single material	
+	        color = getColor(int(m - 1.0));
+    	}
+        vec3 pos = origin + t * ray;
+        vec3 normal = calcNormal(pos);
+        vec3 reflection = reflect(ray, normal);
+
+        float occ = calcAO(pos, normal);
+        vec3 light = normalize(lightPos);
+
+        float ambient = Ka * clamp(0.5 + 0.5 * normal.y, 0.0, 1.0);
+        float diffuse = Kd * clamp(dot(normal, light), 0.0, 1.0);
+        diffuse *= softshadow(pos, light, 0.01, 1.0); // shadows not farther away than 1.0
+        float specular = diffuse * pow(clamp(dot(reflection, light), 0.0, 1.0), 36.0);
+
+        color = color * ambient * occ + color * diffuse * Kd * occ + specular;
+    } else {
+    	color = vec3(-1.0);
+    }
+
+    return color;
+}
+
+#if 0
+#endif
+
+mat3 setCamera(in vec3 ro, in vec3 ta, float cr) {
+    vec3 cw = normalize(ta - ro);
+    vec3 cp = vec3(sin(cr), cos(cr), 0.0);
+    vec3 cu = normalize(cross(cw,cp));
+    vec3 cv = normalize(cross(cu,cw));
+    return mat3( cu, cv, cw );
+}
+
 float rand(in vec2 co) {
   return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
 }
@@ -389,8 +394,8 @@ float rand(in vec2 co) {
 #define STARFIELD_RANDOM
 
 vec3 starfield(in vec2 xy) {
-	const float speed1 = 2.0;
-	const float speed2 = 0.43;
+    const float speed1 = 2.0;
+    const float speed2 = 0.43;
 #ifdef STARFIELD_CHECKERS
     const float[4] checkers = float[4] (0, 1.0, 1.0, 0.0);
 #endif
@@ -417,9 +422,9 @@ vec3 starfield(in vec2 xy) {
     float v2 = r2 * 10.0 + time * speed2 * (1.0 - 0.6 * rand_r1); 
 
     // Handpicked values for rand() inputs
-   	float x = floor(u * 1800.0);
-   	float y1 = floor(mod(v1, 2.0) * 3.0);
-   	float y2 = floor(mod(v2, 2.0) * 13.29);
+    float x = floor(u * 1800.0);
+    float y1 = floor(mod(v1, 2.0) * 3.0);
+    float y2 = floor(mod(v2, 2.0) * 13.29);
 
 #ifdef STARFIELD_CHECKERS
     float color = (1.0 - rand_r1) * checkers[int(mod(int(16 * u), 2)) * 2 + int(mod(v1, 2))];
@@ -433,58 +438,6 @@ vec3 starfield(in vec2 xy) {
     return vec3(color);
 }
 
-vec3 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
-    const float Ka = 0.2;
-    const float Kd = 0.8;
-
-    vec2 res = march(origin, ray);
-    float t = res.x;
-    float m = res.y;
-    vec3 color = vec3(0.0, 0.0, 0.0);
-    if (m > -0.5) {
-    	// if (m > 9.0) {
-    	// 	// decode and mix blended materials
-     //        color = mix(
-     //            colormap[int(mod(m/10.0, 10.0))],
-     //            colormap[int(m/100.0)],
-     //            vec3(fract(m))
-     //            );
-    	// } else {    	
-     //        // single material	
-	    //     color = colormap[int(m - 1.0)];
-    	// }
-    	color = vec3(0.2, 0.6, 0.8);
-        vec3 pos = origin + t * ray;
-        vec3 normal = calcNormal(pos);
-        vec3 reflection = reflect(ray, normal);
-
-        float occ = calcAO(pos, normal);
-        vec3 light = normalize(lightPos);
-
-        float ambient = Ka * clamp(0.5 + 0.5 * normal.y, 0.0, 1.0);
-        float diffuse = Kd * clamp(dot(normal, light), 0.0, 1.0);
-        diffuse *= softshadow(pos, light, 0.01, 1.0); // shadows not farther away than 1.0
-        float specular = diffuse * pow(clamp(dot(reflection, light), 0.0, 1.0), 36.0);
-
-        color = color * ambient * occ + color * diffuse * Kd * occ + specular;
-    } else {
-    	color = vec3(-1.0);
-    }
-
-    return color;
-}
-
-float fog(float t) {
-    return 1.0 / (1.0 + t * t * 0.1);
-}
-
-mat3 setCamera(in vec3 ro, in vec3 ta, float cr) {
-    vec3 cw = normalize(ta - ro);
-    vec3 cp = vec3(sin(cr), cos(cr), 0.0);
-    vec3 cu = normalize(cross(cw,cp));
-    vec3 cv = normalize(cross(cu,cw));
-    return mat3( cu, cv, cw );
-}
 
 void main(void) {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
@@ -507,7 +460,7 @@ void main(void) {
     // ray direction
     vec3 rd = ca * normalize(vec3(uv, 2.5));
 
-    //  vec3 r = normalize(vec3(uv, 1.0));
+     vec3 r = normalize(vec3(uv, 1.0));
     vec3 color = render(origin, rd, lightPos);
     if (color.x < 0.0) {
     	color = starfield(uv);
@@ -515,6 +468,7 @@ void main(void) {
 
     gl_FragColor = vec4(color, 1.0);
 }
+
 
 		</script>
 
@@ -598,7 +552,7 @@ void main(void) {
 
 			function render() {
 
-				uniforms.time.value += 0.05;
+				uniforms.time.value += 1.0/60.0;
 
 				renderer.render( scene, camera );
 
