@@ -30,6 +30,17 @@
 			}
 
 			#oldie a { color:#da0 }
+          canvas {
+              image-rendering:optimizeSpeed;             /* Legal fallback */
+              image-rendering:-moz-crisp-edges;          /* Firefox        */
+              image-rendering:-o-crisp-edges;            /* Opera          */
+              image-rendering:-webkit-optimize-contrast; /* Safari         */
+              image-rendering:optimize-contrast;         /* CSS3 Proposed  */
+              image-rendering:crisp-edges;               /* CSS4 Proposed  */
+              image-rendering:pixelated;                 /* CSS4 Proposed  */
+              -ms-interpolation-mode:nearest-neighbor;   /* IE8+           */
+            }
+
 		</style>
 	</head>
 	<body>
@@ -187,19 +198,19 @@ float ofsbox(in vec3 q, in vec3 dimension, in vec3 offset) {
 
 float ofsbox2(in vec3 q, in vec3 dimension, in vec3 offset) {
     vec3 xformedq = q + offset;
-		//if (abs(xformedq.z) <= 0.5) {
-			xformedq.z = mod(xformedq.z, 0.6) - 0.5 * 0.6;
-		//}
+	//if (abs(xformedq.z) <= 0.5) {
+		xformedq.z = mod(xformedq.z, 0.6) - 0.5 * 0.6;
+	//}
     return udBox(xformedq, dimension);
 }
 
 float cylinder2(in vec3 q, in vec2 radius_height, in vec3 offset) {
     vec3 xformedq = q;
-		xformedq.yz += offset.yz;
-		float rep = offset.x*2.0;
-		//if (abs(xformedq.x) < 5.0) {
-			xformedq.x = mod(xformedq.x, rep ) - 0.5 * rep;
-		//}
+	xformedq.yz += offset.yz;
+	float rep = offset.x*2.0;
+	//if (abs(xformedq.x) < 5.0) {
+		xformedq.x = mod(xformedq.x, rep ) - 0.5 * rep;
+	//}
     return sdCappedCylinderZ(xformedq, radius_height);
 }
 
@@ -299,12 +310,12 @@ vec2 map(in vec3 q) {
     vec2 disq = disk(q, mat_cyan, mat_red);
 
     vec2 diskette = Union(Union(Union(floppy_case, door), disq), wprot_tab);
-		//vec2 diskette = Union(Union(disq, door), wprot_tab);
-		//vec2 diskette = floppy_case;
-		diskette.y = (diskette.y - 1.0) * 10.0;
-		return diskette;
-		// vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time))), mat_red);
-		// return Blend(diskette, torus);
+#if 0
+	diskette.y = (diskette.y - 1.0) * 10.0;
+	return diskette;
+#endif
+	vec2 torus = vec2(NiceTorus(q + vec3(1.23*sin(time * 0.67), 0, 0), vec2(0.6, 0.2 + 0.19 * cos(time * 0.71)) * (scale + 0.6*sin(time))), mat_red);
+    return Blend(diskette, torus);
 }
 
 // x = distance, y = material
@@ -321,7 +332,11 @@ vec2 march(in vec3 origin, in vec3 r) {
         t += res.x;
         m = res.y;
     }
-		m = mix(m, 1000.0, float(t > tmax));
+    if (t > tmax) {
+         m = 1000.0;
+    }
+	// don't do this: m = mix(m, 1000.0, float(t > tmax));
+    // it's not faster and it fails on nexus 5 gpu
 
     return vec2(t, m);
 }
@@ -354,14 +369,14 @@ float softshadow(in vec3 ro, in vec3 rd, in float mint, in float tmax)
 {
     float res = 1.0;
     float t = mint;
-		float brk = 1.0;
-		float h = 0.0;
+	float brk = 1.0;
+	float h = 0.0;
     for(int i = 0; i < 11; i++) {
-				h = map(ro + rd*t).x;
-				res = min(res, 8.0*h/t);
-				t += clamp(h, 0.02, 0.10);
-				if (h < 0.001 || t > tmax)
-					break;
+		h = map(ro + rd*t).x;
+		res = min(res, 8.0*h/t);
+		t += clamp(h, 0.02, 0.10);
+		if (h < 0.001 || t > tmax)
+			break;
     }
     return clamp(res, 0.0, 1.0);
 }
@@ -381,6 +396,7 @@ vec3 getColor(in int index) {
 
 #define GETCOLORT(index) texture2D(colormap, vec2(float(index)/3.0, 0.0)).rgb
 #define GETCOLORM(index) mix(mix(colormapm[0], colormapm[1], clamp(float(index), 0.0, 1.0)), colormapm[2], clamp(float(index - 1), 0.0, 1.0))
+#define GETCOLORP(index) ((index)==0 ? colormapm[0] : (index) == 1 ? colormapm[1] : colormapm[2])
 
 vec4 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
     const float Ka = 0.2;
@@ -391,11 +407,11 @@ vec4 render(in vec3 origin, in vec3 ray, in vec3 lightPos) {
     float m = res.y;
     vec3 color = vec3(0.0, 0.0, 0.0);
 
-		// decode and mix blended materials
+    // decode and mix blended materials
     int index1 = int(mod(m/10.0, 10.0));
     int index2 = int(m/100.0);
     float mixratio = fract(m);
-    color = mix(GETCOLORM(index1), GETCOLORM(index2), mixratio);
+    color = mix(GETCOLORP(index1), GETCOLORP(index2), mixratio);
 
     vec3 pos = origin + t * ray;
     vec3 normal = calcNormal(pos);
@@ -541,6 +557,8 @@ void main(void) {
 
 			var uniforms;
 
+            var startTime = Date.now();
+
 			init();
 			animate();
 
@@ -575,14 +593,14 @@ void main(void) {
 
 					uniforms: uniforms,
 					vertexShader: document.getElementById( 'vertexShader' ).textContent,
-					fragmentShader: document.getElementById( 'fragmentShader' ).textContent
-
+					fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
+                    shading: THREE.FlatShading
 				} );
 
 				var mesh = new THREE.Mesh( geometry, material );
 				scene.add( mesh );
 
-				renderer = new THREE.WebGLRenderer();
+				renderer = new THREE.WebGLRenderer({ antialias: false});
 				renderer.setPixelRatio( window.devicePixelRatio );
 				container.appendChild( renderer.domElement );
 
@@ -593,13 +611,16 @@ void main(void) {
 
 				onWindowResize();
 
-				window.addEventListener( 'resize', onWindowResize, false );
+				window.addEventListener('resize', onWindowResize, false);
 
 			}
 
 			function onWindowResize( event ) {
-
-				renderer.setSize( window.innerWidth, window.innerHeight );
+                renderer.setPixelRatio(.33);
+				renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.domElement.imageSmoothingEnabled = false;
+                renderer.domElement.webkitImageSmoothingEnabled = false;
+                renderer.domElement.mozImageSmoothingEnabled = false;
 
 				uniforms.resolution.value.x = renderer.domElement.width;
 				uniforms.resolution.value.y = renderer.domElement.height;
@@ -619,7 +640,7 @@ void main(void) {
 
 			function render() {
 
-				uniforms.time.value += 1.0/60.0;
+				uniforms.time.value = (Date.now() - startTime) / 1000.0;
 
 				renderer.render( scene, camera );
 
