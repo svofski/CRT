@@ -1,8 +1,15 @@
 #version 120
 
-uniform sampler2D color_texture;
-uniform sampler2D mpass_texture;
-uniform vec2 color_texture_sz;
+// --- 
+uniform sampler2D Texture0;
+uniform sampler2D Texture1;
+#define color_texture Texture0
+#define mpass_texture Texture1
+uniform vec3 color_texture_sz;
+// ---
+
+//uniform sampler2D color_texture;
+//uniform vec2 color_texture_sz;
 uniform vec2 screen_texture_sz;
 
 #define PI          3.14159265358

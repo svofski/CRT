@@ -1,7 +1,15 @@
 #version 120
 
-uniform sampler2D color_texture;
-uniform vec2 color_texture_sz;
+// --- 
+uniform sampler2D Texture0;
+uniform sampler2D Texture1;
+#define color_texture Texture0
+#define mpass_texture Texture1
+uniform vec3 color_texture_sz;
+// ---
+
+//uniform sampler2D color_texture;
+//uniform vec2 color_texture_sz;
 uniform vec2 screen_texture_sz;
 
 #define PI          3.14159265358
@@ -20,9 +28,7 @@ uniform vec2 screen_texture_sz;
 #define fetch(ofs,center,invx) texture2D(mpass_texture, vec2((ofs) * (invx) + center.x, center.y))
 
 void main(void) {
-    float invx = 1.0 / color_texture_sz.x / 4;
-
-    vec2 xy = gl_TexCoord[0].st - vec2(invx, 0);
+    vec2 xy = gl_TexCoord[0].st;
 
     vec3 rgb = texture2D(color_texture, xy).xyz;
     vec3 yuv = RGB_to_YUV * rgb;
@@ -37,18 +43,13 @@ void main(void) {
     float sinwt = sin(wt);
     float coswt = cos(wt + altv);
 
-    float encoded1 = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
-    encoded1 = encoded1 * 0.5 + 0.25;
+    float encoded = yuv.x + yuv.y * sinwt + yuv.z * coswt;
+    //float clamped = clamp(encoded, 0.0, 1.0);
 
-    xy = xy + vec2(2 * invx, 0);
-    rgb = texture2D(color_texture, xy).xyz;
-    yuv = RGB_to_YUV * rgb;
-    t = xy.x * color_texture_sz.x;
-    wt = t * 2 * PI / width_ratio;
-    sinwt = sin(wt);
-    coswt = cos(wt + altv);
+    encoded = encoded * 0.5 + 0.25;
 
-    float encoded2 = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
-    encoded2 = encoded2 * 0.5 + 0.25;
-    gl_FragColor = vec4(encoded1, encoded2, 0.0, 1.0);
+    float less = encoded < 0.0 ? 1.0 : 0.0;
+    float more = encoded > 1.0 ? 1.0 : 0.0;
+    gl_FragColor = vec4(encoded, less, more, 1.0);
+    
 }

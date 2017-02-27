@@ -1,8 +1,15 @@
 #version 120
 
-uniform sampler2D color_texture;
-uniform sampler2D mpass_texture;
-uniform vec2 color_texture_sz;
+// --- 
+uniform sampler2D Texture0;
+uniform sampler2D Texture1;
+#define color_texture Texture0
+#define mpass_texture Texture1
+uniform vec3 color_texture_sz;
+// ---
+
+//uniform sampler2D color_texture;
+//uniform vec2 color_texture_sz;
 uniform vec2 screen_texture_sz;
 
 uniform float filter_gain;
@@ -22,12 +29,6 @@ uniform float filter_invgain;
 #define YUV_to_RGB  mat3x3( 1.0   , 1.0      , 1.0      ,   0.0      , -0.39465  , 2.03211   ,      1.13983  , -0.58060  , 0.0      )
 
 #define fetch(ofs,center,invx) texture2D(mpass_texture, vec2((ofs) * (invx) + center.x, center.y))
-
-//#define FIRTAPS 20
-//const float FIR[FIRTAPS] = float[FIRTAPS] (-0.008030271,0.003107906,0.016841352,0.032545161,0.049360136,0.066256720,0.082120150,0.095848433,0.106453014,0.113151423,0.115441842,0.113151423,0.106453014,0.095848433,0.082120150,0.066256720,0.049360136,0.032545161,0.016841352,0.003107906);
-
-//#define FIRTAPS 20
-//const float FIR[FIRTAPS]=float[FIRTAPS] (0.034218165,0.037838638,0.041279283,0.044479970,0.047383705,0.049937971,0.052095979,0.053817793,0.055071295,0.055832968,0.056088466,0.055832968,0.055071295,0.053817793,0.052095979,0.049937971,0.047383705,0.044479970,0.041279283,0.037838638);
 
 #define FIRTAPS 20
 const float FIR[FIRTAPS]=float[FIRTAPS] (0.030289281,0.034690838,0.039020054,0.043168185,0.047027347,0.050494338,0.053474373,0.055884554,0.057656942,0.058741099,0.059105978,0.058741099,0.057656942,0.055884554,0.053474373,0.050494338,0.047027347,0.043168185,0.039020054,0.034690838);

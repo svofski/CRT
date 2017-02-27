@@ -1,7 +1,15 @@
 #version 120
 
-uniform sampler2D color_texture;
-uniform vec2 color_texture_sz;
+// --- 
+uniform sampler2D Texture0;
+uniform sampler2D Texture1;
+#define color_texture Texture0
+#define mpass_texture Texture1
+uniform vec3 color_texture_sz;
+// ---
+
+//uniform sampler2D color_texture;
+//uniform vec2 color_texture_sz;
 uniform vec2 screen_texture_sz;
 
 #define PI          3.14159265358
@@ -38,7 +46,7 @@ void main(void) {
     float coswt = cos(wt + altv);
 
     float encoded1 = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
-    encoded1 = encoded1 * 0.5 + 0.25;
+
 
     xy = xy + vec2(2 * invx, 0);
     rgb = texture2D(color_texture, xy).xyz;
@@ -49,6 +57,6 @@ void main(void) {
     coswt = cos(wt + altv);
 
     float encoded2 = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
-    encoded2 = encoded2 * 0.5 + 0.25;
+
     gl_FragColor = vec4(encoded1, encoded2, 0.0, 1.0);
 }

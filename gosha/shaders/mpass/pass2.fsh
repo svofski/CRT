@@ -1,7 +1,15 @@
 #version 120
 
-uniform sampler2D color_texture;
-uniform vec2 color_texture_sz;
+//uniform sampler2D color_texture;
+//uniform sampler2D mpass_texture;
+
+uniform sampler2D Texture0;
+uniform sampler2D Texture1;
+#define color_texture Texture0
+#define mpass_texture Texture1
+
+uniform vec3 color_texture_sz;
+//uniform vec2 color_texture_sz;
 uniform vec2 screen_texture_sz;
 
 #define PI          3.14159265358
@@ -17,18 +25,16 @@ uniform vec2 screen_texture_sz;
 #define RGB_to_YUV  mat3x3( 0.299 , -0.14713 , 0.615    ,   0.587    , -0.28886  , -0.514991 ,      0.114    , 0.436     , -0.10001 )
 #define YUV_to_RGB  mat3x3( 1.0   , 1.0      , 1.0      ,   0.0      , -0.39465  , 2.03211   ,      1.13983  , -0.58060  , 0.0      )
 
-#define fetch(ofs,center,invx) texture2D(mpass_texture, vec2((ofs) * (invx) + center.x, center.y))
+#define fetch(ofs,center,invx) texture2D(mpass_texture, vec2(ofs * invx + center.x, center.y)).x
 
 void main(void) {
-    float invx = 1.0 / color_texture_sz.x / 4;
+    vec2 xy = gl_TexCoord[0].st;// * vec2(1.0, 1.0 + 1.0/VISIBLELINES); - problem in azul3d if odd number of lines, fixed by padding
+    float s = texture2D(mpass_texture, xy).x;
+    // correct for scale and offest from pass1
+    s = (s - 0.25) * 2;
 
-    vec2 xy = gl_TexCoord[0].st - vec2(invx, 0);
-
-    vec3 rgb = texture2D(color_texture, xy).xyz;
-    vec3 yuv = RGB_to_YUV * rgb;
     float width_ratio = color_texture_sz.x / (FSC / FLINE);
-    float height_ratio = color_texture_sz.y / VISIBLELINES;
-    
+    //float width_ratio = 2.0;
 
     float t = xy.x * color_texture_sz.x;
     float wt = t * 2 * PI / width_ratio;
@@ -37,18 +43,14 @@ void main(void) {
     float sinwt = sin(wt);
     float coswt = cos(wt + altv);
 
-    float encoded1 = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
-    encoded1 = encoded1 * 0.5 + 0.25;
+    // s in [0..1], result in [-0.5..0.5]
+    float u = 0.5 * s * sinwt; 
+    float v = 0.5 * s * coswt;
 
-    xy = xy + vec2(2 * invx, 0);
-    rgb = texture2D(color_texture, xy).xyz;
-    yuv = RGB_to_YUV * rgb;
-    t = xy.x * color_texture_sz.x;
-    wt = t * 2 * PI / width_ratio;
-    sinwt = sin(wt);
-    coswt = cos(wt + altv);
+    // offset u, v so that they fit in [0.0, 1.0] range
+    s = clamp(s,       0.0, 1.0);
+    u = clamp(u + 0.5, 0.0, 1.0);
+    v = clamp(v + 0.5, 0.0, 1.0);
 
-    float encoded2 = clamp(yuv.x + yuv.y * sinwt + yuv.z * coswt, 0.0, 1.0);
-    encoded2 = encoded2 * 0.5 + 0.25;
-    gl_FragColor = vec4(encoded1, encoded2, 0.0, 1.0);
+    gl_FragColor = vec4(s, u, v, 1.0);
 }
