@@ -77,6 +77,9 @@ class simulatron:
         self.chunk = CHUNK_SIZE
         self.chunk_count = 0
 
+        # identification pulses
+        self.identify = fm.identify(width)
+
         # create arrays
         self.lined = np.zeros(self.chunk, np.int32)
         self.y = np.zeros(self.chunk, np.float32)
@@ -187,6 +190,9 @@ class simulatron:
         # zero out chroma components for testing
         #db[:] = 0
         #dr[:] = 0
+
+        # insert identification pulses
+        self.identify.work_in_place(line, self.db, self.dr)
 
         # multiplex odd/even lines
         chroma2 = np.array((self.db,self.dr))

@@ -115,3 +115,63 @@ class delay:
         out[:len(self.buffer)] = self.buffer
         out[len(self.buffer):] = in0[:len(out)-len(self.buffer)]
         self.buffer[:] = in0[len(out)-len(self.buffer):]
+
+class identify:
+    INITIAL = 0
+    WORK = 1
+
+    def __init__(self, line_width):
+        self.position = -1
+        self.state = identify.INITIAL
+        self.start, self.end = None,None
+        self.endline = 0
+
+        #t = np.linspace(0, 1, line_width)
+        #square = t * signal.square(np.pi + 2 * np.pi * t)
+        sandcastle = np.hstack([np.zeros(100), 
+            [0.2]*100, np.linspace(0.2,1,180), np.ones(388)])
+
+        self.db_impulses = np.array(list(sandcastle)*10)
+        self.dr_impulses = -np.array(list(sandcastle)*10)
+
+    # TODO: 
+    # this version assumes that the chunks are smaller than frames
+    def work_in_place(self, line, db, dr):
+        start = 0
+
+        if self.state == identify.INITIAL:
+            # pulses in line numbers [6..14] and [319..327] (zero based)
+            # look for lines 6 and 319
+            f = np.searchsorted(line, [6,319])
+            if f[0] < len(line) and line[f[0]] == 6:
+                self.state = identify.WORK
+                self.line_no = line[f[0]]
+                self.end_line_no = self.line_no + 10
+                start = f[0]
+                self.position = 0
+            elif f[1] < len(line) and line[f[1]] == 319:
+                self.state = identify.WORK
+                self.line_no = line[f[1]]
+                self.end_line_no = self.line_no + 10
+                start = f[1]
+                self.end = -1
+                self.position = 0
+
+        if self.state == identify.WORK:
+            end = line.searchsorted(self.end_line_no)
+            if end == len(line):
+                # end_line_no not found in line
+                end = None
+            else:
+                self.state = identify.INITIAL
+
+            length = len(db[start:end])
+            p,self.position = self.position, self.position + length
+            db[start:end] = self.db_impulses[p:self.position]
+            dr[start:end] = self.dr_impulses[p:self.position]
+
+            # cool way to detect line number changes
+            # sync = np.abs(np.sign(np.convolve(line,[1,-1])))[:-1] * line
+            
+
+        

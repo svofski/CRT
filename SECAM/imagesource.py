@@ -61,7 +61,7 @@ class imagesource:
         w, h = len(pix[0]), len(pix)
         return w//3,h,pix
 
-    # out is an array(3,n)
+    # out is an array(3,n) of float rgb values in ramge (0..1)
     def work(self, out, line):
         #print("out.shape=", out.shape)
         #print("out[0].shape=", out[0].shape)
