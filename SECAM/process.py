@@ -12,12 +12,16 @@ import fm
 
 DB_FREQ = 15625 * 272
 DR_FREQ = 15625 * 282
-# max deviation of D'R/D'B
-# D'R should be +/-1.3  and map to +/- 280kHz
-# D'B should be +/-1.05 and map to +/- 230kHz
-CHROMA_HALFBAND = 300e3  
 
-MIX_LUMA = 0.7
+# max deviation of D'R, D'B is 230/280 of D'R
+CHROMA_DEVIATION = 280e3
+
+CHROMA_CENTRE = 4.286e6
+CHROMA_MIN = 3.90000e6
+CHROMA_MAX = 4.75625e6
+
+
+MIX_LUMA = 0.8
 MIX_CHROMA = 0.1
 
 FM_DEMOD_GAIN = 6.5
@@ -29,7 +33,7 @@ DR_ADJUST = 0 # -0.7    # D'R minus more red, plus more green
 DB_ADJUST = 0 # -0.5 # +0.05   # D'B minus more yellow, plus more blue
 
 
-FM_MOD_SENSITIVITY=2 * np.pi * CHROMA_HALFBAND*0.95
+FM_MOD_SENSITIVITY=2 * np.pi * CHROMA_DEVIATION
 
 class simulatron:
     def __init__(self, filename, outfilename, samp_rate=12000000):
@@ -54,18 +58,18 @@ class simulatron:
 
         # pre-filter high frequencies in the luma
         # (verify using multiburst on the test card)
-        self.y_prefilter = fm.chroma_reject(center_hz=(DB_FREQ+DR_FREQ)/2,
-            halfband = CHROMA_HALFBAND*3)
+        self.y_prefilter = fm.chroma_reject(center_hz=CHROMA_CENTRE,
+            halfband = 1.5*(CHROMA_MAX-CHROMA_MIN))
 
         # chroma selector filter
         self.chroma_pass = fm.chroma_pass(
                 ntaps=81*2, # this is only to even out the delay with Y
-                center_hz=(DB_FREQ+DR_FREQ)/2,
-                halfband=CHROMA_HALFBAND*1.75)
+                center_hz=CHROMA_CENTRE,
+                halfband=1.25*(CHROMA_MAX-CHROMA_MIN))
 
         # filters out chroma from the composite
-        self.chroma_stop = fm.chroma_reject(center_hz=(DB_FREQ+DR_FREQ)/2,
-                halfband=CHROMA_HALFBAND*1.25)
+        self.chroma_stop = fm.chroma_reject(center_hz=CHROMA_CENTRE,
+                halfband=(CHROMA_MAX-CHROMA_MIN))
 
         self.plot_filters()
 
@@ -107,7 +111,7 @@ class simulatron:
             spectrum_color='r'):
 
         t = np.linspace(0, 1, self.chunk)
-        ramp = signal.sawtooth(nbars * 2 * np.pi * t)
+        ramp = diapason * signal.sawtooth(nbars * 2 * np.pi * t)
 
         # insert zero reference in the middle 
         ref_x = len(ramp) - 2 * len(ramp)//nbars
@@ -139,9 +143,6 @@ class simulatron:
         demod_scale = 1  # don't scale, make sure that demod gain is set well
         demod_center = demodramp[ref_x]
 
-        #print("calibrate: demod_scale=%f demod_center=%f" % 
-        #    (demod_scale, demod_center))
-
         demodramp = demodramp - demod_center
 
         ax.set_title("%s calibration: zero at %3.3f" % (tit, demod_center))
@@ -164,11 +165,11 @@ class simulatron:
 
         ax3.set_title('Modulated signal spectra')
 
-        self.demod_scale,self.zero_b=self.calibrate(1.3,self.fm_db,0.7,
-                nbars=7, tit='Db', ax=ax1,
+        self.demod_scale,self.zero_b=self.calibrate(230/280,
+                self.fm_db,0.7, nbars=7, tit='Db', ax=ax1,
                 ax_spectrum=ax3, spectrum_color='#0000ff40')
-        self.demod_scale,self.zero_r=self.calibrate(1.05,self.fm_dr,0.7,
-                nbars=7, tit='Dr', ax=ax2,
+        self.demod_scale,self.zero_r=self.calibrate(1.0,
+                self.fm_dr,0.7, nbars=7, tit='Dr', ax=ax2,
                 ax_spectrum=ax3, spectrum_color='#ff000040')
         plt.savefig('output/debug/calibration.png')
         
@@ -220,6 +221,9 @@ class simulatron:
         self.rgb2ydbdr.general_work(rgb, self.y, self.db, self.dr)
         self.y_prefilter.general_work(self.y,self.y)
 
+        # scale db to 230/280 
+        self.db = 230/280 * self.db
+
         # insert identification pulses
         self.identify.work_in_place(lined, self.db, self.dr)
 
@@ -269,6 +273,9 @@ class simulatron:
         recv_dr = self.select(self.chromaB, self.chromaA, sel)-self.zero_r \
             + DR_ADJUST
 
+        #self.recv_y[:]=0.5
+        #recv_db[:] = 0
+        #recv_dr[:] = 0
         # YDbDr -> RGB
         self.ydbdr2rgb.general_work(self.recv_y,recv_db,recv_dr,self.rgb2)
 

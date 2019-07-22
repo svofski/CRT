@@ -62,25 +62,26 @@ class filter:
         out0[:] = tmp
 
 class chroma_pass(filter):
-    def __init__(self, ntaps=81, center_hz=15625*272, halfband=0.75e6, samp_rate=12e6):
+    def __init__(self, ntaps=81, center_hz=15625*272, halfband=0.75e6, samp_rate=12e6, beta=6.76):
         f1 = center_hz-halfband
         f2 = center_hz+halfband
         #print("chroma pass: f1=%f f2=%f" % (f1,f2))
         taps = ffd.firwin(ntaps, 
                 [2*f1/samp_rate, 2*f2/samp_rate],
                 pass_zero=False,
-                window=("kaiser",6.76))
+                window=("kaiser",beta))
         filter.__init__(self, taps)
 
 class chroma_reject(filter):
-    def __init__(self, ntaps=81, center_hz=15625*272, halfband=0.75e6, samp_rate=12e6):
+    def __init__(self, ntaps=81, center_hz=15625*272, halfband=0.75e6, 
+            samp_rate=12e6, beta=6.76):
         f1 = center_hz-halfband
         f2 = center_hz+halfband
         #print("chroma reject: f1=%f f2=%f" % (f1,f2))
         taps = ffd.firwin(ntaps, 
                 [2*f1/samp_rate, 2*f2/samp_rate],
                 pass_zero=True,
-                window=("kaiser",6.76))
+                window=("kaiser",beta))
         filter.__init__(self, taps)
 
 

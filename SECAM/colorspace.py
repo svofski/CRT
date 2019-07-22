@@ -34,8 +34,8 @@ class rgb2ydbdr:
         y,db,dr = secam[0],secam[1],secam[2]
         #print('y=', y, 'db=', db, 'dr=', dr)
         out_y[:] = y.clip(0,1)
-        out_db[:] = db.clip(-1.33/2,1.33/2)
-        out_dr[:] = dr.clip(-1.05/2,1.05/2)
+        out_db[:] = db.clip(-1,1)
+        out_dr[:] = dr.clip(-1,1)
 
         return len(out_y)
 
