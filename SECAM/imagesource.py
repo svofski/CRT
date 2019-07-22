@@ -78,7 +78,7 @@ class imagesource:
                     self.done = True
                     
             out[i] = self.pix[self.y,self.x]            
-            line[i] = self.y
+            line[i] = self.y + 1  # secam line numbering is 1-based
 
         return i+1
 

@@ -8,12 +8,13 @@ class imagesink:
     """
     save float32 (r,g,b) vectors as png
     """
-    def __init__(self, filename, width, height):
+    def __init__(self, filename, width, height, recombine=True):
         self.filename = filename
         self.width = width
         self.height = height
         #self.frame = numpy.zeros((height,width,3))
         self.pixels = []
+        self.recombine = recombine
 
     def work(self, in0):
         #print("in0=", in0, " shaep=", in0.shape)
@@ -37,18 +38,11 @@ class imagesink:
         writer = png.Writer(width=self.width, height=self.height)
         f = open(self.filename, 'wb')
         floats = numpy.array(pixels).reshape(self.height, self.width * 3)
-        #print("min=", floats.min(), " max=", floats.max())
-        floats = self.recombine_fields(floats)
- 
-        #if abs(floats.max() - floats.min()) > 0.0001:
-        #    autoscale = 1.0/(floats.max() - floats.min())
-        #    autoffset = -floats.min()
-        #    floats = numpy.clip((floats + autoffset) * autoscale, 0, 1)
-        #    print("min=", floats.min(), " max=", floats.max())
+        if self.recombine:
+            floats = self.recombine_fields(floats)
 
         floats = numpy.clip(floats, 0, 1)
 
-        #floats = (0.5+floats) * 128
         floats = floats * 255
         floats = numpy.ndarray.astype(floats, int)
         rows = floats.tolist()

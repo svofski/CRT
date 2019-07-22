@@ -20,7 +20,7 @@ CHROMA_HALFBAND = 300e3
 MIX_LUMA = 0.7
 MIX_CHROMA = 0.1
 
-FM_DEMOD_GAIN = 8.5
+FM_DEMOD_GAIN = 6.5
 
 CHUNK_SIZE = 4096
 
@@ -28,22 +28,24 @@ CHUNK_SIZE = 4096
 DR_ADJUST = 0 # -0.7    # D'R minus more red, plus more green
 DB_ADJUST = 0 # -0.5 # +0.05   # D'B minus more yellow, plus more blue
 
-# -1.3..+1.3 input at this sensitivity should give -280..280kHz deviation
-FM_MOD_SENSITIVITY=2 * np.pi * CHROMA_HALFBAND*0.75 
+
+FM_MOD_SENSITIVITY=2 * np.pi * CHROMA_HALFBAND*0.95
 
 class simulatron:
     def __init__(self, filename, outfilename, samp_rate=12000000):
         self.samp_rate = samp_rate
         self.filename = filename
+        self.frame_no = 0 # important for A/B chroma ordering
 
         width = samp_rate//15625
 
         self.source = imagesource(filename, samp_rate)
         self.rgb2ydbdr = rgb2ydbdr()
         self.ydbdr2rgb = ydbdr2rgb()
-        self.sink = imagesink(outfilename, width, 625)
+        self.sink = imagesink(outfilename, width, 625, recombine=True)
 
-        self.probe_sink = imagesink('output/debug/modulated.png', width, 625)
+        self.probe_sink = imagesink('output/debug/modulated.png', width, 625,
+                recombine=False)
 
         self.fm_mod = fm.fm_mod(FM_MOD_SENSITIVITY/self.samp_rate)
 
@@ -78,7 +80,7 @@ class simulatron:
         self.chunk_count = 0
 
         # identification pulses
-        self.identify = fm.identify(width)
+        self.identify = fm.identify(samp_rate,width)
 
         # create arrays
         self.lined = np.zeros(self.chunk, np.int32)
@@ -94,6 +96,10 @@ class simulatron:
         self.chromaB = np.zeros(self.chunk, np.float32)
         self.recv_y = np.zeros(self.chunk, np.float32)
         self.rgb2 = np.zeros((self.chunk,3), np.float32)
+
+        # debug arrays
+        self.debug_chroma = np.zeros(width * 16, np.float32)
+        self.debug_chroma_i = len(self.debug_chroma)
 
 
     def calibrate(self, diapason, carrier_gen, dc_offset, 
@@ -178,35 +184,59 @@ class simulatron:
         plt.legend(loc='upper left')
         plt.savefig('output/debug/filters.png')
 
+    def debug_hook(self, line, chroma):
+        lookfor = 6 # 319
+        f = np.searchsorted(line, lookfor)
+        start = 0
+        if f < len(line) and line[f] == lookfor:
+            self.debug_chroma_i = 0
+            start = f
+        if self.debug_chroma_i < len(self.debug_chroma):
+            end = min(self.debug_chroma_i + len(chroma[start:]), 
+                    len(self.debug_chroma))
+            l = end - self.debug_chroma_i
+            self.debug_chroma[self.debug_chroma_i:end] = chroma[start:start+l]
+            self.debug_chroma_i = end
+            if self.debug_chroma_i >= len(self.debug_chroma):
+                self.plot_debug_chroma(self.debug_chroma, lookfor)
+
+    def plot_debug_chroma(self, chroma, line1):
+        w = 768
+        fig = plt.figure()
+        f,ax = plt.subplots(1)
+        ax.set_ylim([-1.8,1.8])
+        x = np.linspace(line1, line1 + len(chroma)//768, len(chroma))
+        ax.plot(x, chroma)
+        plt.savefig('output/debug/identification.png')
+
     def modulate(self, rgb, line):
         # build odd/even selector using line number
-        self.line_delay.general_work(line % 2, self.lined)
-        sel = self.lined
+        lined = self.lined
+        self.line_delay.general_work(line, lined)
+
+        sel = (lined + self.frame_no) % 2
 
         # RGB -> YDbDr
         self.rgb2ydbdr.general_work(rgb, self.y, self.db, self.dr)
         self.y_prefilter.general_work(self.y,self.y)
 
-        # zero out chroma components for testing
-        #db[:] = 0
-        #dr[:] = 0
-
         # insert identification pulses
-        self.identify.work_in_place(line, self.db, self.dr)
+        self.identify.work_in_place(lined, self.db, self.dr)
 
         # multiplex odd/even lines
-        chroma2 = np.array((self.db,self.dr))
-        chroma_muxed = chroma2[0] * sel + chroma2[1] * (1-sel)
+        chroma_muxed = self.select(self.db,self.dr, sel)
 
         # fm modulate multiplexed chroma
         self.fm_mod.general_work(chroma_muxed, self.chroma_fm)
+
+        self.debug_hook(lined, chroma_muxed)
 
         # generate FM carriers
         self.fm_db.work(self.carrier2[0])
         self.fm_dr.work(self.carrier2[1])
 
         # select carrier using line number
-        carrier_muxed = self.carrier2[0] * sel + self.carrier2[1] * (1-sel)
+        carrier_muxed = self.select(self.carrier2[0], self.carrier2[1], sel)
         
         # multiply chroma by carrier
         carrier_chroma = self.chroma_fm * carrier_muxed
@@ -300,9 +330,6 @@ def process_file(inputfile):
 from multiprocessing import Pool
 import glob
 
-def cock(inputfile):
-    print("cock: ", inputfile)
-
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         inputfiles=[]
@@ -311,9 +338,12 @@ if __name__ == '__main__':
     else:
         inputfiles=['testimages/testcard.png']
 
-    print("Processing multiple input images:\n%s" % ','.join(inputfiles))
-    with Pool(4) as p:
-        p.map(process_file, inputfiles)
+    if len(inputfiles) > 1:
+        print("Processing multiple input images:\n%s" % ','.join(inputfiles))
+        with Pool(4) as p:
+            p.map(process_file, inputfiles)
+    else:
+        process_file(inputfiles[0])
 
     print("\nAll done")
 

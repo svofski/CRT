@@ -55,20 +55,20 @@ def test_modulation():
 # test frequency deviation
 
 def test_freq_deviation():
-    N = int(12e6/15625)
+    N = int(12e6/15625*16)
     samp_rate = 12e6
     CHROMA_HALFBAND = 300e3
-    fm_mod = fm.fm_mod(2*np.pi*CHROMA_HALFBAND*0.75/samp_rate)
-    input = 1.3 * np.ones(N)
+    fm_mod = fm.fm_mod(2*np.pi*CHROMA_HALFBAND*0.95/samp_rate)
+    input = 1.25 * np.ones(N)
     output = np.zeros(N, np.complex64)
     fm_mod.general_work(input, output)
 
     plt.figure()
-    plotSpectrum(output, samp_rate, 'r', "Dr projected deviation = 280kHz")
+    plotSpectrum(output, samp_rate, 'r', "Dr projected deviation = 350kHz")
 
-    input = 1.05 * np.ones(N)
+    input = 1.52 * np.ones(N) * 230/280
     fm_mod.general_work(input, output)
-    plotSpectrum(output, samp_rate, 'b', "Db projected deviation = 230kHz")
+    plotSpectrum(output, samp_rate, 'b', "Db projected deviation = 350kHz")
 
     plt.show()
 

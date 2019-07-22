@@ -120,19 +120,44 @@ class identify:
     INITIAL = 0
     WORK = 1
 
-    def __init__(self, line_width):
+    def __init__(self, samp_rate, line_width):
         self.position = -1
         self.state = identify.INITIAL
         self.start, self.end = None,None
         self.endline = 0
 
-        #t = np.linspace(0, 1, line_width)
-        #square = t * signal.square(np.pi + 2 * np.pi * t)
-        sandcastle = np.hstack([np.zeros(100), 
-            [0.2]*100, np.linspace(0.2,1,180), np.ones(388)])
+        # D'R sandcastle: 4.406 up to 4.756 MHz, rise time 15us (looks up)
+        # D'R = 0..1.25 ~ 350kHz
+        dr = self.sandcastle(samp_rate, line_width, 1.25, margin=0.0) 
+        #print("D'R niveau=", dr[-100])
 
-        self.db_impulses = np.array(list(sandcastle)*10)
-        self.dr_impulses = -np.array(list(sandcastle)*10)
+        # D'B sandcastle: 4.250 to 3.900 MHz, rise time 18us (looks down)
+        db = self.sandcastle(samp_rate, line_width, 1.52, margin=2.3e-6)
+        #print("D'B niveau=", db[-100])
+
+
+        # I fail to see any reason to do the scale dance here
+        # the end result is just the frequencies adn they are 350kHz
+        # for both D'R and D'B
+        self.db_impulses = -np.array(list(db)*10) * 230/280
+        self.dr_impulses = np.array(list(dr)*10)
+
+    def sandcastle(self, samp_rate, line_width, level, margin):
+        lm = int(samp_rate * margin)
+        m = np.zeros(lm)
+        # on commence con un signal scie
+        scie = np.hstack([m, np.linspace(0, 5.5, line_width - 2 * lm), m])
+        # un circuit écrêteur pour faire un plateau
+        # > on observe que l’écrêtage ne se fait pas au même niveau 
+        # > pour le signal D’R et pour le signal D’B.
+        #quand = lm + int(samp_rate * rise_time)
+        quand = np.searchsorted(scie, level)
+        scie[quand+1:] = scie[quand] 
+        # calculer le temps de montée
+        #montee = (quand - lm)/samp_rate
+        #print("temps de montée=%2.3fus" % (montee*1e6))
+
+        return scie
 
     # TODO: 
     # this version assumes that the chunks are smaller than frames
@@ -140,19 +165,19 @@ class identify:
         start = 0
 
         if self.state == identify.INITIAL:
-            # pulses in line numbers [6..14] and [319..327] (zero based)
-            # look for lines 6 and 319
-            f = np.searchsorted(line, [6,319])
-            if f[0] < len(line) and line[f[0]] == 6:
+            # pulses in line numbers [7..15] and [320..328] (zero based)
+            # look for lines 7 and 320
+            f = np.searchsorted(line, [7,320])
+            if f[0] < len(line) and line[f[0]] == 7:
                 self.state = identify.WORK
                 self.line_no = line[f[0]]
-                self.end_line_no = self.line_no + 10
+                self.end_line_no = self.line_no + 9
                 start = f[0]
                 self.position = 0
-            elif f[1] < len(line) and line[f[1]] == 319:
+            elif f[1] < len(line) and line[f[1]] == 320:
                 self.state = identify.WORK
                 self.line_no = line[f[1]]
-                self.end_line_no = self.line_no + 10
+                self.end_line_no = self.line_no + 9
                 start = f[1]
                 self.end = -1
                 self.position = 0
