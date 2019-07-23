@@ -21,7 +21,7 @@ CHROMA_MIN = 3.90000e6
 CHROMA_MAX = 4.75625e6
 
 
-MIX_LUMA = 0.8
+MIX_LUMA = 0.9
 MIX_CHROMA = 0.1
 
 FM_DEMOD_GAIN = 6.5
@@ -58,24 +58,28 @@ class simulatron:
 
         # pre-filter high frequencies in the luma
         # (verify using multiburst on the test card)
-        self.y_prefilter = fm.chroma_reject(center_hz=CHROMA_CENTRE,
-            halfband = 1.5*(CHROMA_MAX-CHROMA_MIN))
+
+        self.y_prefilter = fm.chroma_reject(
+            f1=CHROMA_MIN-15625*18, f2=CHROMA_MAX+15625*12, beta=3)
+
+        #self.anticloche = fm.chroma_reject(
+        #        center_hz=CHROMA_CENTRE,
+        #        halfband=15625*10, beta=6)
 
         # chroma selector filter
         self.chroma_pass = fm.chroma_pass(
-                ntaps=81*2, # this is only to even out the delay with Y
-                center_hz=CHROMA_CENTRE,
-                halfband=1.25*(CHROMA_MAX-CHROMA_MIN))
+                ntaps=81*2, # this evens out the delay with Y
+                f1=CHROMA_MIN-15625*9, f2=CHROMA_MAX+15625*1)
 
         # filters out chroma from the composite
-        self.chroma_stop = fm.chroma_reject(center_hz=CHROMA_CENTRE,
-                halfband=(CHROMA_MAX-CHROMA_MIN))
+        self.chroma_stop = fm.chroma_reject(
+                f1 = CHROMA_MIN + 15625,
+                f2 = CHROMA_MAX - 15625)
 
         self.plot_filters()
 
         self.fm_demod = fm.fm_demod(FM_DEMOD_GAIN)
         self.delay = fm.delay(width)
-        self.ydelay = fm.delay(len(self.chroma_pass.b)//2)
 
         # equalize delay for the line number/selector 
         self.line_delay = fm.delay(81)
@@ -131,6 +135,7 @@ class simulatron:
         filtered = np.zeros(len(ramp), np.complex64)
         self.chroma_pass.general_work(modramp, filtered)
         self.chroma_pass.general_work(modramp, filtered)
+        #self.anticloche.general_work(filtered, filtered)
 
         self.plotSpectrum(filtered, self.samp_rate, ax=ax_spectrum,
                 color=spectrum_color)
@@ -171,6 +176,7 @@ class simulatron:
         self.demod_scale,self.zero_r=self.calibrate(1.0,
                 self.fm_dr,0.7, nbars=7, tit='Dr', ax=ax2,
                 ax_spectrum=ax3, spectrum_color='#ff000040')
+
         plt.savefig('output/debug/calibration.png')
         
     def plot_filters(self):
@@ -178,6 +184,8 @@ class simulatron:
         ax = fig.subplots(1,1)
         self.chroma_pass.plot(self.samp_rate, ax=ax, color='r', 
                 label='chroma pass')
+        #self.anticloche.plot(self.samp_rate, ax = ax, color='g',
+        #        label='anti cloche')
         self.chroma_stop.plot(self.samp_rate, ax=ax, color='b', 
                 label='chroma stop')
         self.y_prefilter.plot(self.samp_rate, ax=ax, color='y', 
@@ -221,11 +229,18 @@ class simulatron:
         self.rgb2ydbdr.general_work(rgb, self.y, self.db, self.dr)
         self.y_prefilter.general_work(self.y,self.y)
 
+        # insert identification pulses
+        self.identify.work_in_place(lined, self.db, self.dr)
+
         # scale db to 230/280 
         self.db = 230/280 * self.db
 
-        # insert identification pulses
-        self.identify.work_in_place(lined, self.db, self.dr)
+        # hard limit 
+        self.db[self.db < -1.4] = -1.4
+        self.db[self.db > 1.8] = 1.8
+
+        self.dr[self.dr < -1.8] = -1.8
+        self.dr[self.dr > 1.2] = 1.2
 
         # multiplex odd/even lines
         chroma_muxed = self.select(self.db,self.dr, sel)
@@ -243,8 +258,12 @@ class simulatron:
         carrier_muxed = self.select(self.carrier2[0], self.carrier2[1], sel)
         
         # multiply chroma by carrier
-        carrier_chroma = self.chroma_fm * carrier_muxed
-        secam = MIX_LUMA * self.y + MIX_CHROMA * carrier_chroma
+        cc = self.chroma_fm * carrier_muxed
+
+        # anti cloche 
+        #self.anticloche.general_work(cc, cc)
+
+        secam = MIX_LUMA * self.y + MIX_CHROMA * cc
 
         # save modulated grayscale image
         magnitude = np.real(np.sqrt((secam*secam)))
@@ -277,7 +296,7 @@ class simulatron:
         #recv_db[:] = 0
         #recv_dr[:] = 0
         # YDbDr -> RGB
-        self.ydbdr2rgb.general_work(self.recv_y,recv_db,recv_dr,self.rgb2)
+        self.ydbdr2rgb.general_work(self.recv_y, recv_db, recv_dr, self.rgb2)
 
         return self.rgb2
 

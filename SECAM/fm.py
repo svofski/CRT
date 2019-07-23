@@ -62,9 +62,8 @@ class filter:
         out0[:] = tmp
 
 class chroma_pass(filter):
-    def __init__(self, ntaps=81, center_hz=15625*272, halfband=0.75e6, samp_rate=12e6, beta=6.76):
-        f1 = center_hz-halfband
-        f2 = center_hz+halfband
+    def __init__(self, ntaps=81, f1=15625*272, f2=15625*282, 
+            samp_rate=12e6, beta=6.76):
         #print("chroma pass: f1=%f f2=%f" % (f1,f2))
         taps = ffd.firwin(ntaps, 
                 [2*f1/samp_rate, 2*f2/samp_rate],
@@ -73,18 +72,14 @@ class chroma_pass(filter):
         filter.__init__(self, taps)
 
 class chroma_reject(filter):
-    def __init__(self, ntaps=81, center_hz=15625*272, halfband=0.75e6, 
+    def __init__(self, ntaps=81, f1=15625*272, f2=15625*282,
             samp_rate=12e6, beta=6.76):
-        f1 = center_hz-halfband
-        f2 = center_hz+halfband
         #print("chroma reject: f1=%f f2=%f" % (f1,f2))
         taps = ffd.firwin(ntaps, 
                 [2*f1/samp_rate, 2*f2/samp_rate],
                 pass_zero=True,
                 window=("kaiser",beta))
         filter.__init__(self, taps)
-
-
 
 class low_pass(filter):
     def __init__(self, ntaps=81, samp_rate=12e6):
@@ -129,35 +124,24 @@ class identify:
 
         # D'R sandcastle: 4.406 up to 4.756 MHz, rise time 15us (looks up)
         # D'R = 0..1.25 ~ 350kHz
-        dr = self.sandcastle(samp_rate, line_width, 1.25, margin=0.0) 
+        #dr = self.sandcastle(samp_rate, line_width, 1.25, margin=0.0) 
         #print("D'R niveau=", dr[-100])
 
         # D'B sandcastle: 4.250 to 3.900 MHz, rise time 18us (looks down)
-        db = self.sandcastle(samp_rate, line_width, 1.52, margin=2.3e-6)
+        #db = self.sandcastle(samp_rate, line_width, 1.52, margin=2.3e-6)
         #print("D'B niveau=", db[-100])
 
+        dr = self.sandcastle2(samp_rate, line_width, margin = 0)
+        db = self.sandcastle2(samp_rate, line_width, margin = 2.3e-6)
 
-        # I fail to see any reason to do the scale dance here
-        # the end result is just the frequencies adn they are 350kHz
-        # for both D'R and D'B
-        self.db_impulses = -np.array(list(db)*10) * 230/280
+        self.db_impulses = -np.array(list(db)*10)
         self.dr_impulses = np.array(list(dr)*10)
 
-    def sandcastle(self, samp_rate, line_width, level, margin):
+    def sandcastle2(self, samp_rate, line_width, margin):
         lm = int(samp_rate * margin)
         m = np.zeros(lm)
         # on commence con un signal scie
         scie = np.hstack([m, np.linspace(0, 5.5, line_width - 2 * lm), m])
-        # un circuit écrêteur pour faire un plateau
-        # > on observe que l’écrêtage ne se fait pas au même niveau 
-        # > pour le signal D’R et pour le signal D’B.
-        #quand = lm + int(samp_rate * rise_time)
-        quand = np.searchsorted(scie, level)
-        scie[quand+1:] = scie[quand] 
-        # calculer le temps de montée
-        #montee = (quand - lm)/samp_rate
-        #print("temps de montée=%2.3fus" % (montee*1e6))
-
         return scie
 
     # TODO: 

@@ -31,7 +31,7 @@ class imagesink:
     def recombine_fields(self, floats):
         gloats = numpy.zeros(floats.shape)
         gloats[1::2] = floats[:floats.shape[0]//2]
-        gloats[::2] = floats[floats.shape[0]//2:]
+        gloats[::2] =  floats[floats.shape[0]//2:]
         return gloats
 
     def savePng(self, pixels):
