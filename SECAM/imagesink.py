@@ -35,7 +35,7 @@ class imagesink:
         return gloats
 
     def savePng(self, pixels):
-        writer = png.Writer(width=self.width, height=self.height)
+        writer = png.Writer(width=self.width, height=self.height, greyscale=False)
         f = open(self.filename, 'wb')
         floats = numpy.array(pixels).reshape(self.height, self.width * 3)
         if self.recombine:
